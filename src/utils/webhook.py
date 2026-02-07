@@ -5,11 +5,19 @@ Webhook utilities for sending report data to external systems.
 import logging
 import httpx
 import json
+import os
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-WEBHOOK_BASE_URL = "http://localhost:5173"
+# Supabase Edge Function URL for report webhook
+# REQUIRED: Set WEBHOOK_URL in .env file
+WEBHOOK_BASE_URL = os.getenv("WEBHOOK_URL")
+if not WEBHOOK_BASE_URL:
+    raise ValueError("WEBHOOK_URL environment variable is required")
 WEBHOOK_TIMEOUT = 30.0  # seconds
 
 
@@ -21,7 +29,7 @@ async def send_report_webhook(
     """
     Send report data to the external webhook endpoint.
     
-    PUT http://localhost:5173/webhook/report/{thread_id}
+    PUT {WEBHOOK_BASE_URL}/{thread_id}
     
     Args:
         thread_id: The unique thread identifier for this validation journey
@@ -31,7 +39,8 @@ async def send_report_webhook(
     Returns:
         True if webhook was sent successfully, False otherwise
     """
-    webhook_url = f"{WEBHOOK_BASE_URL}/webhook/report/{thread_id}"
+    # Edge Function expects thread_id as part of the path
+    webhook_url = f"{WEBHOOK_BASE_URL}/{thread_id}"
     
     # User requested payload format: report_score (str), report_metadata (str)
     # Metadata should be a JSON string

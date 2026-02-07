@@ -1,0 +1,43 @@
+{
+    "thread_id": "388aa4bd-5174-42b1-ac7e-ccc01c1807f3",
+    "status": "free_report_complete",
+    "tier": "free",
+    "interview_summary": {
+        "questions_asked": 9,
+        "interview_complete": true
+    },
+    "report_data": {
+        "tier": "free",
+        "title": "Synthetic Audit Twins",
+        "viability_score": 64,
+        "gauge_status": "Needs Work",
+        "scores": {
+            "problem_severity": {
+                "score": 7,
+                "reasoning": "Concrete revenue impact (lost six-figure contracts), compliance risk, and quantified customer spend (EUR 13,500-18,000 quarterly) confirm urgent painkiller status in regulated verticals."
+            },
+            "market_opportunity": {
+                "score": 7,
+                "reasoning": "EUR 4.2B TAM (AI testing by 2034), EUR 32.2B digital twin market, 2,000+ addressable Series A/B fintech/healthtech targets, 18.3% CAGR growth trajectory."
+            },
+            "competition_intensity": {
+                "score": 4,
+                "reasoning": "Moderate competition: incumbents (UserTesting, Maze) have brand/panels but lack regulatory datasets; AI-first entrants (Uxia) lack failure-pattern depth. Defensible niche but 12-month replication risk from well-funded players."
+            },
+            "execution_complexity": {
+                "score": 5,
+                "reasoning": "Moderate-to-high complexity: LLM+DOM hybrid engine, regulatory data ingestion, compliance partnership closure, 14-week MVP timeline feasible but tight. Co-founder hire is critical blocker."
+            },
+            "founder_alignment": {
+                "score": 6,
+                "reasoning": "Solo technical founder with AI/CV expertise, regulatory counsel investment, and co-founder (compliance officer) near-close. Demonstrated market validation (15 interviews, EUR 40,000 regulatory diligence) and channel strategy sophistication."
+            }
+        },
+        "value_proposition": "Cut compliance testing cycles from 6 weeks to days using AI agents trained on hidden regulatory failure patterns, so fintech and healthtech teams launch faster and avoid expensive audit rejections.",
+        "customer_profile": "VP Product or Head of Compliance at a US Series A/B fintech or digital health startup (EUR 5M-50M ARR) with 10-200 engineers, active regulatory reviews, and quarterly human-testing spend exceeding EUR 13,500. They face 3-6 week recruitment delays and missed commercial deadlines due to late-stage accessibility or SEC compliance failures.",
+        "what_if_scenario": "If incumbents like Maze or UserTesting launch compliance-persona features within 12 months, pivot to white-label enterprise integration (embedded in compliance platforms) or vertical deepening (pure healthtech HIPAA certification pipeline) to defend against commoditization.",
+        "package_recommendation": "standard",
+        "personalized_next_step": "Close the co-founder hire within 2 weeks (regulatory credibility is your GTM accelerant), then execute the data-partnership contracts with all three compliance firms simultaneously to lock in your proprietary failure-event moat before a well-funded competitor moves."
+    },
+    "error": null
+}

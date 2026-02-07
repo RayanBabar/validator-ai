@@ -268,12 +268,12 @@ async def conduct_dynamic_research(
     # Premium: 4 queries (Deep dive)
     # Scoring Baseline: 4 queries (Consistency priority)
     tier_query_map = {
-        "free": 2,
-        "basic": 2,
-        "standard": 4,
-        "premium": 4,
-        "custom": 4,
-        "scoring_baseline": 4 # Used internally for consistent scores
+        "free": 1,
+        "basic": 1,
+        "standard": 1,
+        "premium": 1,
+        "custom": 1,
+        "scoring_baseline": 1 # Used internally for consistent scores
     }
     
     num_queries = tier_query_map.get(tier, 2)

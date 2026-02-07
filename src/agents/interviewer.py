@@ -151,7 +151,7 @@ async def interviewer_node(state: ValidationState) -> dict:
             },
             use_complex=False,
             parse_json=True,
-            provider="claude",
+            provider="openai",
         )
     except Exception as e:
         logger.error(f"Interview LLM error (both OpenAI and Claude failed): {e}")

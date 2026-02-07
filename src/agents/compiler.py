@@ -108,8 +108,8 @@ async def _generate_pitch_deck(report_data: object) -> InvestorPitchDeck:
             InvestorPitchDeck,
             PITCH_DECK_PROMPT,
             {"report_json": report_json},
-            use_complex=True,
-            provider="claude"
+            use_complex=False,
+            provider="openai"
         )
         return deck
     except Exception as e:
@@ -429,9 +429,9 @@ async def compile_standard_report(state: ValidationState) -> dict:
         scores = await LLMService.invoke(
             COMPILER_SCORING_PROMPT,
             invoke_args,
-            use_complex=True,
+            use_complex=False,
             parse_json=True,
-            provider="claude-opus",  # Opus 4.5 for critical scoring reasoning
+            provider="openai",  # Use fast model only
         )
 
         final_score, adjusted_scores = calculate_go_no_go_score(scores)
@@ -481,9 +481,9 @@ async def compile_standard_report(state: ValidationState) -> dict:
         executive_summary = await LLMService.invoke(
             EXECUTIVE_SUMMARY_PROMPT,
             exec_summary_args,
-            use_complex=True,
+            use_complex=False,
             parse_json=True,
-            provider="claude-opus",  # Opus 4.5 for high-quality executive summary
+            provider="openai",  # Use fast model only
         )
     except Exception as exec_error:
         logger.warning(f"Executive summary generation failed: {exec_error}")

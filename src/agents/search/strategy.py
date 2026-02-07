@@ -49,8 +49,8 @@ async def generate_strategic_directive(
                 "qa_pairs": qa_pairs,
                 "research_context": research_context
             },
-            use_complex=True, # Critical: Use smart model for strategy
-            provider="claude-opus" # Use Opus 4.5 (via 3.5 placeholder) for maximum reasoning
+            use_complex=False, # Use fast model only
+            provider="openai" # Use fast OpenAI model
         )
         logger.info(f"Strategic Directive Generated: Pricing={directive.pricing_strategy}")
         return directive

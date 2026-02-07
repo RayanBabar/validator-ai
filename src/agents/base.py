@@ -45,7 +45,7 @@ os.environ["TAVILY_API_KEY"] = settings.TAVILY_API_KEY
 # ===========================================
 # Fast/cheap model for simple tasks (interview, free tier, basic scoring)
 llm_fast = ChatOpenAI(
-    model="gpt-5-mini",
+    model="gpt-5-nano",
     api_key=settings.OPENAI_API_KEY,
 )
 
@@ -656,7 +656,7 @@ You MUST align your analysis with these decided constraints. Do not deviate.
     }
 
     result = await LLMService.invoke_structured(
-        output_model, prompt, invoke_args, use_complex=True, provider="claude"  # Claude Sonnet for writing
+        output_model, prompt, invoke_args, use_complex=False, provider="openai"  # Use fast model only
     )
     return result.model_dump()
 

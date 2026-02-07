@@ -10,9 +10,9 @@ MODEL_PRICING = {
         "input": 1.75,
         "output": 14.00
     },
-    "gpt-5-mini": {
-        "input": 0.25,
-        "output": 2.00
+    "gpt-5-nano-2025-08-07": {
+        "input": 0.05,
+        "output": 0.40
     },
     "gpt-5-mini-2025-08-07": {
         "input": 0.25,

@@ -75,7 +75,7 @@ async def free_tier_scan(state: ValidationState) -> dict:
         invoke_args,
         use_complex=False,
         parse_json=True,
-        provider="claude",
+        provider="openai",
     )
 
     # Get interview quality scores from state (set by researcher after interview)

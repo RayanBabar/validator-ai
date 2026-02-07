@@ -122,8 +122,8 @@ You MUST align your analysis with these decided constraints:
         BusinessModelCanvas,
         BASIC_BMC_PROMPT,
         invoke_args_base,
-        use_complex=True,  # Use smart model for strategy
-        provider="claude",
+        use_complex=False,  # Use fast model only
+        provider="openai",
     )
 
     # 3. STEP 2: CALCULATE SCORES (Using Unified Prompt)
@@ -158,8 +158,8 @@ You MUST align your analysis with these decided constraints:
             GoNoGoScores,
             COMPILER_SCORING_PROMPT,
             scoring_args,
-            use_complex=True,
-            provider="claude",
+            use_complex=False,
+            provider="openai",
         )
         score, adjusted_scores = calculate_go_no_go_score(scoring_res.model_dump())
         logger.info(f"Calculated new Go/No-Go score: {score}")
@@ -186,8 +186,8 @@ You MUST align your analysis with these decided constraints:
         BasicExecutiveSummary,
         BASIC_EXEC_SUMMARY_PROMPT,
         exec_args,
-        use_complex=True,
-        provider="claude",
+        use_complex=False,
+        provider="openai",
     )
 
     # 5. ASSEMBLY

@@ -384,7 +384,7 @@ async def attempt_fix_for_inconsistency(
                 "name2": name2,
                 "content2": str(content2),
             },
-            provider="claude",  # Claude Sonnet for fix writing
+            provider="openai",  # Claude Sonnet for fix writing
             parse_json=True
         )
 

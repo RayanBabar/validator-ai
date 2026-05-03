@@ -107,26 +107,26 @@ function MarketAnalysisModule({ data }: { data: any }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {data.total_addressable_market && (
           <MarketSizeCard
-            title="Total Addressable Market (TAM)"
-            value={data.total_addressable_market.value}
-            details={data.total_addressable_market.details}
-            sources={data.total_addressable_market.sources}
+            title="TAM (Total Addressable)"
+            value={data.total_addressable_market.market_size || data.total_addressable_market.value}
+            details={data.total_addressable_market.growth_rate || data.total_addressable_market.details}
+            sources={data.total_addressable_market.drivers || data.total_addressable_market.sources}
           />
         )}
         {data.serviceable_addressable_market && (
           <MarketSizeCard
-            title="Serviceable Market (SAM)"
-            value={data.serviceable_addressable_market.value}
-            details={data.serviceable_addressable_market.details}
-            sources={data.serviceable_addressable_market.sources}
+            title="SAM (Serviceable Addressable)"
+            value={data.serviceable_addressable_market.market_size || data.serviceable_addressable_market.value}
+            details={data.serviceable_addressable_market.growth_rate || data.serviceable_addressable_market.details}
+            sources={data.serviceable_addressable_market.drivers || data.serviceable_addressable_market.sources}
           />
         )}
         {data.serviceable_obtainable_market && (
           <MarketSizeCard
-            title="Obtainable Market (SOM)"
-            value={data.serviceable_obtainable_market.value}
-            details={data.serviceable_obtainable_market.details}
-            sources={data.serviceable_obtainable_market.sources}
+            title="SOM (Serviceable Obtainable)"
+            value={data.serviceable_obtainable_market.market_size || data.serviceable_obtainable_market.value}
+            details={data.serviceable_obtainable_market.growth_rate || data.serviceable_obtainable_market.details}
+            sources={data.serviceable_obtainable_market.drivers || data.serviceable_obtainable_market.sources}
           />
         )}
       </div>
@@ -134,22 +134,18 @@ function MarketAnalysisModule({ data }: { data: any }) {
       {/* Growth Trends */}
       {data.growth_trends && (
         <div className="mb-6">
-          <h4 className="text-sm font-medium mb-3">Growth Trends</h4>
-          <p className="text-sm text-muted-foreground mb-4">{data.growth_trends.growth_trajectory}</p>
-
+          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-primary" /> Market Dynamics
+          </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.growth_trends.drivers && (
-              <div className="bg-green-500/10 rounded-xl p-4">
-                <h5 className="text-sm font-medium text-green-400 mb-2">Growth Drivers</h5>
-                <BulletList items={data.growth_trends.drivers.slice(0, 4)} />
-              </div>
-            )}
-            {data.growth_trends.barriers && (
-              <div className="bg-red-500/10 rounded-xl p-4">
-                <h5 className="text-sm font-medium text-red-400 mb-2">Barriers</h5>
-                <BulletList items={data.growth_trends.barriers.slice(0, 4)} />
-              </div>
-            )}
+             <div className="bg-secondary/30 rounded-xl p-4">
+                <p className="text-xs font-semibold mb-2">Growth Trajectory</p>
+                <p className="text-sm text-muted-foreground">{data.growth_trends.growth_trajectory}</p>
+             </div>
+             <div className="bg-secondary/30 rounded-xl p-4">
+                <p className="text-xs font-semibold mb-2">Key Drivers</p>
+                <BulletList items={data.growth_trends.drivers} />
+             </div>
           </div>
         </div>
       )}
@@ -157,52 +153,20 @@ function MarketAnalysisModule({ data }: { data: any }) {
       {/* Customer Demographics */}
       {data.customer_demographics && (
         <div className="mb-6">
-          <h4 className="text-sm font-medium mb-3">Target Customer Profile</h4>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm mb-4">
-              <tbody>
-                {data.customer_demographics.age_range && (
-                  <tr className="border-b border-white/10">
-                    <td className="py-2 px-3 font-medium w-1/4">Age Range</td>
-                    <td className="py-2 px-3 text-muted-foreground">{data.customer_demographics.age_range}</td>
-                  </tr>
-                )}
-                {data.customer_demographics.income_level && (
-                  <tr className="border-b border-white/10">
-                    <td className="py-2 px-3 font-medium">Income Level</td>
-                    <td className="py-2 px-3 text-muted-foreground">{data.customer_demographics.income_level}</td>
-                  </tr>
-                )}
-                {data.customer_demographics.location && (
-                  <tr className="border-b border-white/10">
-                    <td className="py-2 px-3 font-medium">Location</td>
-                    <td className="py-2 px-3 text-muted-foreground">{data.customer_demographics.location}</td>
-                  </tr>
-                )}
-                {data.customer_demographics.psychographics && (
-                  <tr className="border-b border-white/10">
-                    <td className="py-2 px-3 font-medium">Psychographics</td>
-                    <td className="py-2 px-3 text-muted-foreground">{data.customer_demographics.psychographics}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {data.customer_demographics.pain_points && (
-            <div className="mt-4">
-              <h5 className="text-sm font-medium mb-2">Pain Points</h5>
-              <BulletList items={data.customer_demographics.pain_points} />
+          <h4 className="text-sm font-medium mb-3">Target Customer Segment</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-secondary/30 rounded-xl p-4">
+               <div className="space-y-2">
+                 <p className="text-xs text-muted-foreground"><span className="font-semibold text-primary">Location:</span> {data.customer_demographics.location}</p>
+                 <p className="text-xs text-muted-foreground"><span className="font-semibold text-primary">Age:</span> {data.customer_demographics.age_range}</p>
+                 <p className="text-xs text-muted-foreground"><span className="font-semibold text-primary">Income:</span> {data.customer_demographics.income_level}</p>
+               </div>
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Market Entry Barriers */}
-      {data.market_entry_barriers && (
-        <div>
-          <h4 className="text-sm font-medium mb-3">Market Entry Barriers</h4>
-          <BulletList items={data.market_entry_barriers.slice(0, 5)} />
+            <div className="bg-secondary/30 rounded-xl p-4">
+               <p className="text-xs font-semibold mb-2">Psychographics & Behavior</p>
+               <p className="text-xs text-muted-foreground">{data.customer_demographics.psychographics}</p>
+            </div>
+          </div>
         </div>
       )}
     </ModuleSection>
@@ -214,114 +178,82 @@ function FinancialsModule({ data }: { data: any }) {
   if (!data) return null;
 
   return (
-    <ModuleSection title="Financial Projections" icon={DollarSign}>
-      {/* 3-Year Projections */}
-      {data.three_year_projections && (
-        <div className="mb-6">
-          <h4 className="text-sm font-medium mb-3">3-Year Financial Projections</h4>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/10">
-                  <th className="text-left py-2 px-3 text-muted-foreground">Metric</th>
-                  <th className="text-right py-2 px-3 text-muted-foreground">Year 1</th>
-                  <th className="text-right py-2 px-3 text-muted-foreground">Year 2</th>
-                  <th className="text-right py-2 px-3 text-muted-foreground">Year 3</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-white/5">
-                  <td className="py-2 px-3 font-medium">Revenue</td>
-                  <td className="text-right py-2 px-3 text-green-400">{data.three_year_projections.year_1_detailed?.revenue}</td>
-                  <td className="text-right py-2 px-3 text-green-400">{data.three_year_projections.year_2_detailed?.revenue}</td>
-                  <td className="text-right py-2 px-3 text-green-400">{data.three_year_projections.year_3_detailed?.revenue}</td>
-                </tr>
-                <tr className="border-b border-white/5">
-                  <td className="py-2 px-3 font-medium">Costs</td>
-                  <td className="text-right py-2 px-3 text-red-400">{data.three_year_projections.year_1_detailed?.costs}</td>
-                  <td className="text-right py-2 px-3 text-red-400">{data.three_year_projections.year_2_detailed?.costs}</td>
-                  <td className="text-right py-2 px-3 text-red-400">{data.three_year_projections.year_3_detailed?.costs}</td>
-                </tr>
-                <tr className="border-b border-white/5">
-                  <td className="py-2 px-3 font-medium">Profit</td>
-                  <td className="text-right py-2 px-3">{data.three_year_projections.year_1_detailed?.profit}</td>
-                  <td className="text-right py-2 px-3">{data.three_year_projections.year_2_detailed?.profit}</td>
-                  <td className="text-right py-2 px-3">{data.three_year_projections.year_3_detailed?.profit}</td>
-                </tr>
-              </tbody>
-            </table>
+    <ModuleSection title="Financial Modeling" icon={DollarSign}>
+      <div className="space-y-6">
+        {/* 3-Year Summary */}
+        {data.three_year_projections && (
+          <div>
+            <h4 className="text-sm font-medium mb-3">3-Year Financial Forecast</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               {[
+                 { label: 'Year 1 Revenue', val: data.three_year_projections.year_1_detailed?.revenue || data.three_year_projections.year_1_revenue, color: 'text-green-400' },
+                 { label: 'Year 2 Revenue', val: data.three_year_projections.year_2_detailed?.revenue || data.three_year_projections.year_2_revenue, color: 'text-green-400' },
+                 { label: 'Year 3 Revenue', val: data.three_year_projections.year_3_detailed?.revenue || data.three_year_projections.year_3_revenue, color: 'text-green-400' },
+               ].map((m, i) => (
+                 <div key={i} className="bg-secondary/30 rounded-xl p-4 border border-white/5">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase">{m.label}</p>
+                    <p className={`text-lg font-bold ${m.color}`}>{m.val || 'N/A'}</p>
+                 </div>
+               ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Unit Economics */}
-      {data.unit_economics && (
-        <div className="mb-6">
-          <h4 className="text-sm font-medium mb-3">Unit Economics</h4>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <MetricCard label="CAC" value={data.unit_economics.cac} />
-            <MetricCard label="LTV" value={data.unit_economics.ltv} />
-            <MetricCard label="LTV:CAC Ratio" value={data.unit_economics.ltv_cac_ratio} trend="up" />
-            <MetricCard label="Contribution Margin" value={data.unit_economics.contribution_margin} />
-            <MetricCard label="Payback Period" value={`${data.unit_economics.payback_period_months} mo`} />
-          </div>
-        </div>
-      )}
-
-      {/* Revenue Model */}
-      {data.revenue_model && (
-        <div className="mb-6">
-          <h4 className="text-sm font-medium mb-3">Revenue Model</h4>
-          <p className="text-sm text-primary mb-2">{data.revenue_model.primary_model}</p>
-          {data.revenue_model.pricing_tiers && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {data.revenue_model.pricing_tiers.map((tier: string, i: number) => (
-                <div key={i} className="bg-secondary/30 rounded-lg p-3 text-xs text-muted-foreground">{tier}</div>
-              ))}
+        {/* Unit Economics & Burn */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {data.unit_economics && (
+            <div className="bg-secondary/30 rounded-xl p-5">
+              <h4 className="text-xs font-semibold mb-3 uppercase tracking-wider text-primary">Unit Economics</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                   <span className="text-muted-foreground">Customer Acquisition Cost (CAC)</span>
+                   <span className="font-bold">{data.unit_economics.cac}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                   <span className="text-muted-foreground">Lifetime Value (LTV)</span>
+                   <span className="font-bold text-green-400">{data.unit_economics.ltv}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                   <span className="text-muted-foreground">LTV/CAC Ratio</span>
+                   <span className="font-bold">{data.unit_economics.ltv_cac_ratio}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          {data.burn_rate_runway && (
+            <div className="bg-secondary/30 rounded-xl p-5">
+              <h4 className="text-xs font-semibold mb-3 uppercase tracking-wider text-primary">Burn & Runway</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                   <span className="text-muted-foreground">Monthly Burn</span>
+                   <span className="font-bold text-red-400">{data.burn_rate_runway.monthly_burn_rate}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                   <span className="text-muted-foreground">Runway</span>
+                   <span className="font-bold">{data.burn_rate_runway.runway_months} months</span>
+                </div>
+              </div>
             </div>
           )}
         </div>
-      )}
 
-      {/* Break Even / Burn Rate */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {data.break_even_analysis && (
-          <div className="bg-secondary/30 rounded-xl p-4">
-            <h5 className="text-sm font-medium mb-2">Break Even Analysis</h5>
-            <p className="text-lg font-bold text-primary">{data.break_even_analysis.break_even_point}</p>
-            <p className="text-xs text-muted-foreground">Timeline: {data.break_even_analysis.timeline_months}</p>
-          </div>
-        )}
-        {data.burn_rate_runway && (
-          <div className="bg-secondary/30 rounded-xl p-4">
-            <h5 className="text-sm font-medium mb-2">Burn Rate & Runway</h5>
-            <p className="text-lg font-bold text-red-400">{data.burn_rate_runway.monthly_burn_rate}</p>
-            <p className="text-xs text-muted-foreground">Runway: {data.burn_rate_runway.runway_months}</p>
+        {/* Revenue Model */}
+        {data.revenue_model && (
+          <div className="bg-secondary/30 rounded-xl p-5">
+            <h4 className="text-xs font-semibold mb-3 uppercase tracking-wider text-primary">Revenue Streams</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-xs font-bold mb-2">Primary Model: {data.revenue_model.primary_revenue_model}</p>
+                <BulletList items={data.revenue_model.revenue_streams} />
+              </div>
+              <div className="bg-primary/5 rounded-lg p-3">
+                 <p className="text-[10px] font-semibold text-primary mb-1">Pricing Strategy</p>
+                 <p className="text-xs text-muted-foreground italic">{data.revenue_model.pricing_strategy}</p>
+              </div>
+            </div>
           </div>
         )}
       </div>
-
-      {/* Key Financial KPIs */}
-      {data.key_financial_kpis && (
-        <div className="mt-6">
-          <h4 className="text-sm font-medium mb-3">Key Financial KPIs</h4>
-          <div className="space-y-3">
-            {data.key_financial_kpis.map((kpi: any, i: number) => (
-              <div key={i} className="bg-secondary/30 rounded-xl p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="font-medium text-sm">{kpi.kpi}</span>
-                  <div className="text-right">
-                    <span className="text-xs text-muted-foreground">Target: </span>
-                    <span className="text-sm text-green-400">{kpi.target}</span>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">Year 1: {kpi.year_1_target}</p>
-                <p className="text-xs text-muted-foreground mt-1">{kpi.why_critical}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </ModuleSection>
   );
 }
@@ -666,87 +598,99 @@ function RiskAnalysisModule({ data }: { data: any }) {
   if (!data) return null;
 
   return (
-    <ModuleSection title="Risk Analysis" icon={AlertTriangle}>
-      {/* SWOT */}
-      {(data.strengths || data.weaknesses || data.opportunities || data.threats) && (
-        <div className="mb-6">
-          <h4 className="text-sm font-medium mb-3">SWOT Analysis</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.strengths && (
-              <div className="bg-green-500/10 rounded-xl p-4">
-                <h5 className="text-sm font-medium text-green-400 mb-2 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" /> Strengths
-                </h5>
-                <BulletList items={data.strengths.slice(0, 4)} />
-              </div>
-            )}
-            {data.weaknesses && (
-              <div className="bg-red-500/10 rounded-xl p-4">
-                <h5 className="text-sm font-medium text-red-400 mb-2 flex items-center gap-2">
-                  <XCircle className="w-4 h-4" /> Weaknesses
-                </h5>
-                <BulletList items={data.weaknesses.slice(0, 4)} />
-              </div>
-            )}
-            {data.opportunities && (
-              <div className="bg-blue-500/10 rounded-xl p-4">
-                <h5 className="text-sm font-medium text-blue-400 mb-2 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" /> Opportunities
-                </h5>
-                <BulletList items={data.opportunities.slice(0, 4)} />
-              </div>
-            )}
-            {data.threats && (
-              <div className="bg-yellow-500/10 rounded-xl p-4">
-                <h5 className="text-sm font-medium text-yellow-400 mb-2 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" /> Threats
-                </h5>
-                <BulletList items={data.threats.slice(0, 4)} />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Risk Matrix */}
-      {data.risk_matrix && (
-        <div className="mb-6">
-          <h4 className="text-sm font-medium mb-3">Risk Matrix</h4>
-          <div className="space-y-3">
-            {data.risk_matrix.map((risk: any, i: number) => (
-              <div key={i} className="bg-secondary/30 rounded-xl p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <span className="font-medium">{risk.risk}</span>
-                    <span className="block text-xs text-muted-foreground">{risk.category}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="text-center">
-                      <span className="text-[10px] text-muted-foreground block">Prob</span>
-                      <RiskBadge level={risk.probability} />
+    <ModuleSection title="Risk Assessment & Mitigation" icon={AlertTriangle}>
+      <div className="space-y-6">
+        {/* Market & Technical Risks */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {data.market_risks && data.market_risks.length > 0 && (
+            <div className="bg-orange-500/5 border border-orange-500/10 rounded-xl p-4">
+              <h5 className="text-xs font-semibold text-orange-400 mb-3 uppercase tracking-wider">Market Risks</h5>
+              <div className="space-y-3">
+                {data.market_risks.map((risk: any, i: number) => (
+                  <div key={i} className="bg-secondary/30 rounded-lg p-2.5">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold">{risk.risk_factor}</span>
+                      <div className="flex gap-1">
+                        <RiskBadge level={risk.impact_level} />
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <span className="text-[10px] text-muted-foreground block">Impact</span>
-                      <RiskBadge level={risk.impact} />
-                    </div>
+                    <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
                   </div>
-                </div>
-                <p className="text-xs text-muted-foreground"><strong>Mitigation:</strong> {risk.mitigation}</p>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+          {data.technical_risks && data.technical_risks.length > 0 && (
+            <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4">
+              <h5 className="text-xs font-semibold text-blue-400 mb-3 uppercase tracking-wider">Technical Risks</h5>
+              <div className="space-y-3">
+                {data.technical_risks.map((risk: any, i: number) => (
+                  <div key={i} className="bg-secondary/30 rounded-lg p-2.5">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold">{risk.risk_factor}</span>
+                      <div className="flex gap-1">
+                        <RiskBadge level={risk.impact_level} />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
 
-      {/* Kill Conditions */}
-      {data.kill_conditions && (
-        <div>
-          <h4 className="text-sm font-medium mb-3 text-red-400">Kill Conditions</h4>
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-            <BulletList items={data.kill_conditions} />
-          </div>
+        {/* Operational & Financial Risks */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {data.operational_risks && data.operational_risks.length > 0 && (
+            <div className="bg-secondary/30 rounded-xl p-4">
+              <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Operational Risks</h5>
+              <div className="space-y-3">
+                {data.operational_risks.map((risk: any, i: number) => (
+                  <div key={i} className="bg-secondary/20 rounded-lg p-2.5">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold">{risk.risk_factor}</span>
+                      <RiskBadge level={risk.impact_level} />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {data.financial_risks && data.financial_risks.length > 0 && (
+            <div className="bg-secondary/30 rounded-xl p-4">
+              <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Financial Risks</h5>
+              <div className="space-y-3">
+                {data.financial_risks.map((risk: any, i: number) => (
+                  <div key={i} className="bg-secondary/20 rounded-lg p-2.5">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold">{risk.risk_factor}</span>
+                      <RiskBadge level={risk.impact_level} />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Contingency Plans */}
+        {data.contingency_plans && data.contingency_plans.length > 0 && (
+          <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+            <h5 className="text-xs font-semibold text-red-400 mb-3 uppercase tracking-wider">Contingency Plans</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               {data.contingency_plans.map((plan: any, i: number) => (
+                 <div key={i} className="bg-red-500/5 rounded-lg p-3 border border-red-500/10">
+                    <p className="text-xs font-bold text-red-400 mb-1">{plan.scenario}</p>
+                    <p className="text-[10px] text-muted-foreground">{plan.action_plan}</p>
+                 </div>
+               ))}
+            </div>
+          </div>
+        )}
+      </div>
     </ModuleSection>
   );
 }
@@ -1567,20 +1511,88 @@ export default function Report() {
           {/* Regulatory Compliance */}
           {modules.regulatory && (
             <ModuleSection title="Regulatory Compliance" icon={Shield}>
-              <div className="space-y-3">
-                {Array.isArray(modules.regulatory?.compliance_requirements) && modules.regulatory.compliance_requirements.map((req: any, i: number) => (
-                  <div key={i} className="bg-secondary/30 rounded-xl p-4">
-                    <p className="text-sm font-medium mb-1">{req.regulation || req.requirement || req.area}</p>
-                    <p className="text-xs text-muted-foreground">{req.action_required || req.implementation || req.compliance_strategy}</p>
-                    {req.timeline && <p className="text-xs text-primary mt-1">Timeline: {req.timeline}</p>}
-                  </div>
-                ))}
-                {modules.regulatory?.overall_risk_level && (
-                  <div className="bg-secondary/20 rounded-lg p-3">
-                    <span className="text-xs font-semibold text-muted-foreground">Overall Risk: </span>
-                    <span className="text-sm font-bold text-primary">{modules.regulatory.overall_risk_level}</span>
+              <div className="space-y-6">
+                {/* Data Privacy */}
+                {modules.regulatory.data_privacy_compliance && (
+                  <div className="bg-secondary/30 rounded-xl p-4">
+                    <h4 className="text-sm font-medium text-primary mb-2 flex items-center gap-2">
+                      <Lock className="w-4 h-4" /> Data Privacy: {modules.regulatory.data_privacy_compliance.applicable_regulation}
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs font-semibold mb-1">Data Categories</p>
+                        <BulletList items={modules.regulatory.data_privacy_compliance.data_categories} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold mb-1">Legal Basis</p>
+                        <p className="text-xs text-muted-foreground">{modules.regulatory.data_privacy_compliance.legal_basis}</p>
+                      </div>
+                    </div>
                   </div>
                 )}
+
+                {/* Country & Industry Regulations */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {modules.regulatory.country_regulations && modules.regulatory.country_regulations.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-semibold mb-2">Country Specific</h5>
+                      <div className="space-y-2">
+                        {modules.regulatory.country_regulations.map((req: any, i: number) => (
+                          <div key={i} className="bg-secondary/20 rounded-lg p-2">
+                            <p className="text-xs font-medium">{req.regulation || req.requirement}</p>
+                            <p className="text-[10px] text-muted-foreground">{req.action_required || req.implementation}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {modules.regulatory.industry_compliance && modules.regulatory.industry_compliance.length > 0 && (
+                    <div>
+                      <h5 className="text-xs font-semibold mb-2">Industry Specific</h5>
+                      <div className="space-y-2">
+                        {modules.regulatory.industry_compliance.map((req: any, i: number) => (
+                          <div key={i} className="bg-secondary/20 rounded-lg p-2">
+                            <p className="text-xs font-medium">{req.regulation || req.requirement}</p>
+                            <p className="text-[10px] text-muted-foreground">{req.action_required || req.implementation}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* IP & Permits */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {modules.regulatory.intellectual_property && modules.regulatory.intellectual_property.length > 0 && (
+                    <div className="bg-secondary/30 rounded-xl p-4">
+                      <h5 className="text-xs font-semibold mb-2">Intellectual Property</h5>
+                      <BulletList items={modules.regulatory.intellectual_property} />
+                    </div>
+                  )}
+                  {modules.regulatory.licensing_permits && modules.regulatory.licensing_permits.length > 0 && (
+                    <div className="bg-secondary/30 rounded-xl p-4">
+                      <h5 className="text-xs font-semibold mb-2">Licensing & Permits</h5>
+                      <BulletList items={modules.regulatory.licensing_permits} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Costs & Policies */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                   {modules.regulatory.compliance_costs && (
+                     <div className="bg-primary/5 border border-primary/20 rounded-xl p-3">
+                        <p className="text-[10px] font-semibold text-primary mb-1">Compliance Costs</p>
+                        <p className="text-xs font-bold">{modules.regulatory.compliance_costs.setup_costs || 'Varies'}</p>
+                        <p className="text-[9px] text-muted-foreground">Ongoing: {modules.regulatory.compliance_costs.ongoing_costs || 'N/A'}</p>
+                     </div>
+                   )}
+                   {modules.regulatory.terms_of_service_requirements && (
+                     <div className="bg-secondary/30 rounded-xl p-3 col-span-2">
+                        <p className="text-[10px] font-semibold mb-1">ToS & Privacy Requirements</p>
+                        <BulletList items={[...(modules.regulatory.terms_of_service_requirements || []), ...(modules.regulatory.privacy_policy_requirements || [])].slice(0, 4)} />
+                     </div>
+                   )}
+                </div>
               </div>
             </ModuleSection>
           )}
@@ -1588,32 +1600,33 @@ export default function Report() {
           {/* Funding Strategy */}
           {modules.funding && (
             <ModuleSection title="Funding Strategy" icon={DollarSign}>
-              <div className="space-y-4">
-                {Array.isArray(modules.funding?.funding_options) && (
-                  <div>
-                    <h4 className="text-sm font-medium mb-3">Funding Options</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {modules.funding.funding_options.map((opt: any, i: number) => (
-                        <div key={i} className="bg-secondary/30 rounded-xl p-4">
-                          <p className="text-sm font-medium mb-1">{opt.type}</p>
-                          <p className="text-xs text-muted-foreground">{opt.description}</p>
-                          {opt.recommended_amount && <p className="text-xs text-primary mt-1">{opt.recommended_amount}</p>}
-                          {opt.suitability && <RiskBadge level={opt.suitability} />}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {modules.funding?.funding_timeline && (
-                  <div className="bg-secondary/20 rounded-lg p-4">
-                    <h4 className="text-sm font-medium mb-2">Timeline</h4>
-                    <div className="grid grid-cols-3 gap-3 text-xs">
-                      {modules.funding.funding_timeline.pre_seed_timing && <MetricCard label="Pre-Seed" value={modules.funding.funding_timeline.pre_seed_timing} />}
-                      {modules.funding.funding_timeline.seed_timing && <MetricCard label="Seed" value={modules.funding.funding_timeline.seed_timing} />}
-                      {modules.funding.funding_timeline.series_a_timing && <MetricCard label="Series A" value={modules.funding.funding_timeline.series_a_timing} />}
-                    </div>
-                  </div>
-                )}
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="bg-primary/10 border border-primary/20 rounded-xl p-5">
+                      <h4 className="text-xs font-semibold text-primary mb-2 uppercase tracking-wider">Capital Requirements</h4>
+                      <p className="text-xl font-bold mb-2">{modules.funding.funding_requirements}</p>
+                      <p className="text-xs text-muted-foreground italic">Target for next 12-18 months</p>
+                   </div>
+                   <div className="bg-secondary/30 rounded-xl p-5">
+                      <h4 className="text-xs font-semibold mb-3 uppercase tracking-wider">Suggested Sources</h4>
+                      <BulletList items={modules.funding.suggested_funding_sources} />
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="bg-secondary/30 rounded-xl p-4">
+                      <h4 className="text-xs font-semibold mb-2 flex items-center gap-2">
+                        <Users className="w-3.5 h-3.5 text-primary" /> Investor Profile
+                      </h4>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{modules.funding.investor_profile}</p>
+                   </div>
+                   <div className="bg-secondary/30 rounded-xl p-4">
+                      <h4 className="text-xs font-semibold mb-2 flex items-center gap-2">
+                        <TrendingUp className="w-3.5 h-3.5 text-primary" /> Exit Strategy
+                      </h4>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{modules.funding.exit_strategy}</p>
+                   </div>
+                </div>
               </div>
             </ModuleSection>
           )}
@@ -1621,55 +1634,49 @@ export default function Report() {
           {/* Implementation Roadmap */}
           {modules.roadmap && (
             <ModuleSection title="Implementation Roadmap" icon={Target}>
-              <div className="space-y-4">
-                {modules.roadmap?.ninety_day_plan && (
-                  <div>
-                    <h4 className="text-sm font-medium text-primary mb-2">90-Day Launch Plan</h4>
-                    <div className="space-y-2">
-                      {Array.isArray(modules.roadmap.ninety_day_plan.week_1_4) && (
-                        <div className="bg-secondary/30 rounded-lg p-3">
-                          <p className="text-xs font-semibold mb-1">Weeks 1-4</p>
-                          <BulletList items={modules.roadmap.ninety_day_plan.week_1_4} />
+              <div className="space-y-6">
+                {/* Phases */}
+                {modules.roadmap.phases && (
+                  <div className="space-y-3">
+                    {modules.roadmap.phases.map((phase: any, i: number) => (
+                      <div key={i} className="flex items-start gap-4 bg-secondary/30 rounded-xl p-4 border border-secondary">
+                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30">
+                          <span className="text-sm font-bold text-primary">{i + 1}</span>
                         </div>
-                      )}
-                      {Array.isArray(modules.roadmap.ninety_day_plan.week_5_8) && (
-                        <div className="bg-secondary/30 rounded-lg p-3">
-                          <p className="text-xs font-semibold mb-1">Weeks 5-8</p>
-                          <BulletList items={modules.roadmap.ninety_day_plan.week_5_8} />
+                        <div className="flex-1">
+                          <div className="flex justify-between items-center mb-1">
+                            <h5 className="text-sm font-bold">{phase.phase_name}</h5>
+                            <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-semibold">{phase.duration}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">{phase.description}</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Array.isArray(phase.key_milestones) && phase.key_milestones.map((m: string, j: number) => (
+                              <span key={j} className="text-[9px] bg-secondary/50 px-2 py-0.5 rounded border border-white/5">{m}</span>
+                            ))}
+                          </div>
                         </div>
-                      )}
-                      {Array.isArray(modules.roadmap.ninety_day_plan.week_9_12) && (
-                        <div className="bg-secondary/30 rounded-lg p-3">
-                          <p className="text-xs font-semibold mb-1">Weeks 9-12</p>
-                          <BulletList items={modules.roadmap.ninety_day_plan.week_9_12} />
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    ))}
                   </div>
                 )}
-                {modules.roadmap?.success_metrics && (
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Success Metrics</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {modules.roadmap.success_metrics.weekly_metrics && (
-                        <div className="bg-secondary/30 rounded-lg p-3">
-                          <p className="text-xs font-semibold text-primary mb-1">Weekly</p>
-                          <BulletList items={modules.roadmap.success_metrics.weekly_metrics.slice(0, 3)} />
-                        </div>
-                      )}
-                      {modules.roadmap.success_metrics.monthly_metrics && (
-                        <div className="bg-secondary/30 rounded-lg p-3">
-                          <p className="text-xs font-semibold text-primary mb-1">Monthly</p>
-                          <BulletList items={modules.roadmap.success_metrics.monthly_metrics.slice(0, 3)} />
-                        </div>
-                      )}
-                      {modules.roadmap.success_metrics.quarterly_metrics && (
-                        <div className="bg-secondary/30 rounded-lg p-3">
-                          <p className="text-xs font-semibold text-primary mb-1">Quarterly</p>
-                          <BulletList items={modules.roadmap.success_metrics.quarterly_metrics.slice(0, 3)} />
-                        </div>
-                      )}
-                    </div>
+
+                {/* Goals & Vision */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-secondary/30 rounded-xl p-4">
+                    <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Short-Term Goals (0-3 Months)</h5>
+                    <BulletList items={modules.roadmap.short_term_goals} />
+                  </div>
+                  <div className="bg-secondary/30 rounded-xl p-4">
+                    <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Long-Term Vision (3-5 Years)</h5>
+                    <p className="text-xs text-muted-foreground leading-relaxed italic">"{modules.roadmap.long_term_vision}"</p>
+                  </div>
+                </div>
+
+                {/* Roadmap Risks */}
+                {modules.roadmap.key_risks && (
+                  <div className="bg-red-500/5 border border-red-500/10 rounded-xl p-4">
+                    <h5 className="text-xs font-semibold text-red-400 mb-2">Execution Risks & Blockers</h5>
+                    <BulletList items={modules.roadmap.key_risks} />
                   </div>
                 )}
               </div>

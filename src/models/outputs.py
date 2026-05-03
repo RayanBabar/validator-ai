@@ -880,7 +880,7 @@ class FinancialFeasibility(BaseModel):
     )
 
     key_financial_kpis: List[FinancialKPI] = Field(
-        ..., description="Key financial metrics to track as structured objects"
+        default_factory=list, description="Key financial metrics to track as structured objects"
     )
 
     @field_validator('three_year_projections', 'revenue_model', 'unit_economics', 'break_even_analysis', 'initial_investment', 'burn_rate_runway', 'key_financial_kpis', mode='before')

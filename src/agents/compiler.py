@@ -160,7 +160,6 @@ def _build_final_report(
         "go_no_go_score": final_score,
         "score_breakdown": scores,
         "executive_summary": executive_summary,
-        "executive_summary": executive_summary,
         "modules": _filter_modules_for_tier(
             state,
             {
@@ -728,30 +727,26 @@ async def compile_standard_report(state: ValidationState) -> dict:
             parse_json=True,
             provider="claude-opus",  # Opus 4.5 for high-quality executive summary
         )
+        # with_structured_output can silently return None when the LLM outputs prose
+        if executive_summary is None:
+            raise ValueError("LLM returned None for executive summary (likely non-JSON response)")
     except Exception as exec_error:
         logger.warning(f"Executive summary generation failed: {exec_error}")
         # Schema-compliant fallback
         executive_summary = {
-            "business_opportunity": {
-                "problem_summary": "Summary generation failed.",
-                "solution_overview": "Analysis for startup idea",
-                "target_market": "See detailed market analysis.",
-                "value_proposition": "See detailed modules.",
-            },
-            "market_insights": {
-                "market_opportunity": "See market analysis module.",
-                "competitive_landscape": "See competitor intelligence module.",
-                "key_differentiators": ["See details in report"],
-            },
-            "financial_execution": {
-                "revenue_model": "See financial feasibility module.",
-                "financial_projections": "See financial feasibility module.",
-                "critical_milestones": ["See implementation roadmap"],
-            },
+            "problem_summary": "Executive summary generation encountered an issue. See detailed module reports below.",
+            "proposed_solution": "Review the detailed analysis modules for full startup assessment.",
+            "report_highlights": [
+                "Full analysis available in detailed modules",
+                f"Go/No-Go Score: {final_score}/100",
+                "See Business Model Canvas, Market Analysis, and Financial modules for details",
+            ],
             "recommendation": {
-                "go_no_go_verdict": "Review Data",
-                "rating_justification": f"Go/No-Go Score: {final_score}/100",
-                "immediate_action_items": ["Review detailed report modules"],
+                "go_no_go_verdict": "Conditional-Go" if final_score >= 35 else "No-Go",
+                "rating_justification": f"Score of {final_score}/100. Review detailed modules for full context.",
+                "key_strengths": ["See detailed report modules"],
+                "key_risks": ["See risk assessment module"],
+                "immediate_action_items": ["Review all report modules for actionable insights"],
             },
         }
 

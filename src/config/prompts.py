@@ -806,7 +806,7 @@ Return VALID JSON ONLY matching this schema:
     "key_activities": ["Activity 1 with priority (high/medium/low)", ...],
     "key_partnerships": ["Partner 1 with specific value exchange", ...],
     "cost_structure": ["Cost 1: {currency} X (Fixed)", "Cost 2: {currency} Y (Variable)"],
-    "regional_adjustments": ["Compliance implication", "Language requirement", ...],
+    "market_adjustments": ["Market/regulatory adaptation 1 for {geography}", "Cultural requirement", ...],
     "key_metrics": ["North Star Metric", "Secondary Metric 1", ...],
     "BMC_highlights": ["Key insight 1", "Strategic opportunity", ...]
 }}"""
@@ -1007,7 +1007,7 @@ Return VALID JSON ONLY matching this schema:
         "x_axis": "Dimension 1 label (e.g., Price: Low to High)",
         "y_axis": "Dimension 2 label (e.g., Features: Basic to Advanced)",
         "quadrant_descriptions": ["Top-Left: description", "Top-Right: description", "Bottom-Left: description", "Bottom-Right: description"],
-        "competitor_positions": [{{"name": "Competitor", "quadrant": "Position", "x": "X value", "y": "Y value"}}],
+        "competitor_positions": [{{"name": "Competitor", "quadrant": "Top-Right", "x": 7.5, "y": 8.2}}], /* x and y are NUMERIC floats 0.0-10.0, NOT strings */
         "recommended_position": "Where this startup should position and why"
     }},
     "differentiation_opportunities": [
@@ -1204,7 +1204,9 @@ OUTPUT LENGTH: 2 A4 pages (~800-1000 words). Be comprehensive but focused.
     + CURRENCY_FORMAT_INSTRUCTIONS
     + """
 
-Return VALID JSON ONLY matching this schema:
+**STRICT LENGTH CONSTRAINT** — keep all list values under 10 words each. Limit key_milestones to MAX 3 items. This JSON must be concise to fit the token budget.
+
+Return VALID JSON ONLY — no markdown, no explanations:
 {{
     "technology_stack": {{
         "frontend": ["Technology with justification"],
@@ -1228,7 +1230,7 @@ Return VALID JSON ONLY matching this schema:
     ],
     "team_composition": {{
         "key_hires": [
-            {{"role": "Role Title", "skills": "Required Skills", "hiring_priority": "Immediate/Month 3/Month 6/Year 1", "estimated_cost": "{currency} X"}}
+            {{"role": "Role Title", "skills": "Required Skills", "hiring_priority": "Immediate/Month 2/Month 3/Month 4/Month 6/Year 1", "estimated_cost": "{currency} X"}}
         ],
         "team_size": "X people at each stage",
         "hiring_notes": "Where to find talent in {geography}"
@@ -1403,8 +1405,7 @@ OUTPUT LENGTH: 2-3 A4 pages (~1000-1200 words). Be execution-focused.
     + """
 - **CONSTRAINT**: Strategies must be short summaries (max 15 words) for table display.
 
-Rank channels by expected ROI (1=best).
-Return VALID JSON matching the schema with detailed channel analysis, 90-day plan, and region-specific tactics.
+Return VALID JSON ONLY — no markdown, no explanations, no prose. Use EXACTLY these field names:
 {{
     "acquisition_channels": [
         {{
@@ -1519,8 +1520,15 @@ OUTPUT LENGTH: 1-2 A4 pages (~600-800 words). Focus on actionable insights.
 """
     + CURRENCY_FORMAT_INSTRUCTIONS
     + """
-- **CONSTRAINT**: Mitigation strategies must be actionable and short (max 15 words).
-
+Return VALID JSON ONLY — no markdown, no explanations. Use EXACTLY these field names:
+{{
+    "top_risks": [
+        {{"risk_name": "Risk name", "probability": "High/Medium/Low", "impact": "High/Medium/Low", "mitigation": "Actionable mitigation (max 15 words)"}}
+    ],
+    "mitigation_strategies": ["Actionable mitigation 1 (max 15 words)", "Mitigation 2"],
+    "contingency_plans": [
+        {{"trigger": "What triggers this contingency", "actions": ["Action step 1", "Action step 2"], "pivot_option": "Alternative path if needed"}}
+    ],
     "kill_switches": [
         {{"indicator": "Metric/Event", "threshold": "Value", "action": "Action"}}
     ],
@@ -1718,7 +1726,7 @@ OUTPUT LENGTH: 2 A4 pages (~800-1000 words). Be specific and actionable.
     + """
 - Focus on {geography} funding sources.
 
-Return VALID JSON matching the schema with funding options analysis, round planning, and specific investor recommendations.
+Return VALID JSON ONLY — no markdown, no explanations, no prose. Use EXACTLY these field names:
 {{
     "funding_options": [
         {{

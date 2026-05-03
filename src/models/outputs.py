@@ -612,8 +612,29 @@ class CompetitorPosition(BaseModel):
 
     name: str = Field(..., description="Competitor name")
     quadrant: str = Field(..., description="Quadrant position")
-    x: float = Field(..., description="X value")
-    y: float = Field(..., description="Y value")
+    x: float = Field(..., description="X axis value (0.0-10.0 numeric scale)")
+    y: float = Field(..., description="Y axis value (0.0-10.0 numeric scale)")
+
+    @field_validator('x', 'y', mode='before')
+    @classmethod
+    def coerce_xy_to_float(cls, v):
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            # Map qualitative labels to numeric positions on 0-10 scale
+            label_map = {
+                "low": 2.0, "medium": 5.0, "med": 5.0, "high": 8.0,
+                "very low": 1.0, "very high": 9.0,
+            }
+            normalized = v.strip().lower()
+            if normalized in label_map:
+                return label_map[normalized]
+            # Try parsing as a float string
+            try:
+                return float(v)
+            except ValueError:
+                pass
+        return v  # Let Pydantic raise the proper error
 
 
 class PositioningAnalysis(BaseModel):
@@ -628,7 +649,7 @@ class PositioningAnalysis(BaseModel):
     )
     competitor_positions: List[CompetitorPosition] = Field(
         ...,
-        description="List of competitor positions",
+        description="List of competitor positions: [{\"name\": \"Competitor\", \"quadrant\": \"Top-Right\", \"x\": 7.5, \"y\": 8.0}]",
     )
     recommended_position: str = Field(
         ..., description="Where this startup should position and why"
@@ -881,13 +902,13 @@ class TeamRole(BaseModel):
     """Structured team role details"""
     role: str = Field(..., description="Role title")
     skills: str = Field(..., description="Required skills (comma separated)")
-    hiring_priority: Literal["Immediate", "Month 3", "Month 6", "Year 1"] = Field(..., description="Hiring priority")
+    hiring_priority: Literal["Immediate", "Month 2", "Month 3", "Month 4", "Month 6", "Year 1"] = Field(..., description="Hiring priority")
     estimated_cost: str = Field(..., description="Estimated monthly cost in {currency}")
 
     @field_validator('hiring_priority', mode='before')
     @classmethod
     def coerce_hiring_priority(cls, v):
-        return _coerce_literal(v, ["Immediate", "Month 3", "Month 6", "Year 1"])
+        return _coerce_literal(v, ["Immediate", "Month 2", "Month 3", "Month 4", "Month 6", "Year 1"])
 
 
 class TeamComposition(BaseModel):
@@ -951,12 +972,12 @@ class TechnicalRequirements(BaseModel):
         ..., description="Multi-stage infrastructure costs (MVP, growth, scale)"
     )
 
-    scalability_plan: ScalabilityAnalysis = Field(
-        ..., description="Structured scalability planning"
+    scalability_plan: Optional[ScalabilityAnalysis] = Field(
+        None, description="Structured scalability planning"
     )
 
-    security_compliance: List[SecurityComplianceRequirement] = Field(
-        ..., description="Security compliance requirements (e.g. GDPR, HIPAA) with implementation details"
+    security_compliance: Optional[List[SecurityComplianceRequirement]] = Field(
+        None, description="Security compliance requirements (e.g. GDPR, HIPAA) with implementation details"
     )
 
 
@@ -1007,14 +1028,14 @@ class RegulatoryRequirement(BaseModel):
 
 class IPItem(BaseModel):
     """Intellectual property item"""
-    protection_type: Literal["Trademark", "Patent", "Copyright"] = Field(..., description="Type of protection")
+    protection_type: Literal["Trademark", "Patent", "Copyright", "Trade Secret"] = Field(..., description="Type of protection")
     description: str = Field(..., description="What needs protection")
     action_required: str = Field(..., description="Action needed to secure IP")
 
     @field_validator('protection_type', mode='before')
     @classmethod
     def coerce_protection_type(cls, v):
-        return _coerce_literal(v, ["Trademark", "Patent", "Copyright"])
+        return _coerce_literal(v, ["Trademark", "Patent", "Copyright", "Trade Secret"])
 
 
 class RegulatoryCompliance(BaseModel):

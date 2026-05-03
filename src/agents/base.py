@@ -186,7 +186,56 @@ class LLMService:
                 if start_idx != -1 and end_idx != -1:
                     json_str = json_str[start_idx:end_idx + 1]
                 
-                parsed_dict = json.loads(json_str)
+                # Attempt JSON parse — with truncation recovery.
+                # The LLM sometimes hits token limits mid-generation, leaving malformed JSON.
+                # Walk back from the last '}' until we find a valid JSON boundary.
+                def _try_parse_json(s: str) -> dict:
+                    try:
+                        return json.loads(s)
+                    except json.JSONDecodeError as e:
+                        # Case 1: "Extra data" — LLM appended text/second JSON after first object.
+                        # Extract the first balanced { ... } by tracking brace depth.
+                        if "Extra data" in str(e):
+                            depth = 0
+                            in_string = False
+                            escape_next = False
+                            for i, ch in enumerate(s):
+                                if escape_next:
+                                    escape_next = False
+                                    continue
+                                if ch == '\\' and in_string:
+                                    escape_next = True
+                                    continue
+                                if ch == '"':
+                                    in_string = not in_string
+                                if not in_string:
+                                    if ch == '{':
+                                        depth += 1
+                                    elif ch == '}':
+                                        depth -= 1
+                                        if depth == 0:
+                                            try:
+                                                return json.loads(s[:i + 1])
+                                            except json.JSONDecodeError:
+                                                break
+                        
+                        # Case 2: Truncated JSON — walk back from the last '}' positions
+                        brace_positions = [i for i, c in enumerate(s) if c == '}']
+                        for pos in reversed(brace_positions[:-1]):  # skip the last (already tried)
+                            candidate = s[:pos + 1]
+                            if candidate.count('{') <= candidate.count('}'):
+                                try:
+                                    return json.loads(candidate)
+                                except json.JSONDecodeError:
+                                    continue
+                        raise  # Re-raise original error if nothing works
+                
+                parsed_dict = _try_parse_json(json_str)
+                
+                # Prune empty {} objects from list fields (LLM truncation artifact)
+                for k, v in list(parsed_dict.items()):
+                    if isinstance(v, list):
+                        parsed_dict[k] = [item for item in v if item != {}]
                 
                 def _to_snake(s: str) -> str:
                     """Convert camelCase / PascalCase to snake_case."""

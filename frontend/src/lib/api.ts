@@ -26,11 +26,10 @@ const mockQuestions = [
   "What's your unique insight or unfair advantage that competitors can't easily replicate?",
   "Walk me through your revenue model. How will you charge, and what's the customer's willingness to pay?",
   "What's your go-to-market strategy for the first 6 months? How will you find and convert your first customers?",
-  "Tell me about the team. Who are the founders, what's their relevant experience, and what key hires are needed?",
-  "What's your technical approach? How long to build an MVP, and what are the biggest technical risks?",
-  "What regulatory, legal, or compliance challenges do you anticipate?",
-  "If this idea fails, what would be the most likely reason? What's your biggest fear about this venture?"
+  "Tell me about the team. Who are the founders, what's their relevant experience, and what key hires are needed?"
 ];
+
+const INTERVIEW_QUESTION_COUNT = 5;
 
 export interface SubmitResponse {
   thread_id: string;
@@ -68,7 +67,7 @@ export async function submitIdea(description: string): Promise<SubmitResponse> {
       status: 'question_pending',
       question: mockQuestions[0],
       question_number: 1,
-      questions_remaining: 9,
+      questions_remaining: INTERVIEW_QUESTION_COUNT - 1,
     };
   }
 
@@ -94,7 +93,7 @@ export async function submitAnswer(threadId: string, answer: string, currentQues
     // Save answer to Supabase
     saveInterviewAnswer(threadId, currentQuestion, mockQuestions[currentQuestion - 1], answer).catch(console.error);
 
-    if (nextQ > 10) {
+    if (nextQ > INTERVIEW_QUESTION_COUNT) {
       updateSessionStatus(threadId, 'free_report_ready').catch(console.error);
       return {
         thread_id: threadId,
@@ -108,7 +107,7 @@ export async function submitAnswer(threadId: string, answer: string, currentQues
       status: 'question_pending',
       question: mockQuestions[nextQ - 1] || mockQuestions[0],
       question_number: nextQ,
-      questions_remaining: 10 - nextQ,
+      questions_remaining: INTERVIEW_QUESTION_COUNT - nextQ,
     };
   }
 

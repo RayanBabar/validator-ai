@@ -15,6 +15,8 @@ interface InterviewState {
   idea: string;
 }
 
+const INTERVIEW_QUESTION_COUNT = 5;
+
 export default function Interview() {
   const { threadId } = useParams<{ threadId: string }>();
   const navigate = useNavigate();
@@ -96,7 +98,7 @@ export default function Interview() {
 
   if (!state) return null;
 
-  const progress = (state.question_number / 10) * 100;
+  const progress = (state.question_number / INTERVIEW_QUESTION_COUNT) * 100;
   const estimatedMinutes = state.questions_remaining * 1;
 
   return (
@@ -113,7 +115,7 @@ export default function Interview() {
             className="mb-8"
           >
             <div className="flex items-center justify-between text-sm mb-3">
-              <span className="font-medium">Question {state.question_number} of 10</span>
+              <span className="font-medium">Question {state.question_number} of {INTERVIEW_QUESTION_COUNT}</span>
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <Clock className="w-3.5 h-3.5" />
                 ~{estimatedMinutes} min remaining

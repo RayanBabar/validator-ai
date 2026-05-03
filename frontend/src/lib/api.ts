@@ -1,14 +1,23 @@
-import freeReportData from '@/data/free_report.json';
-import basicReportData from '@/data/basic_report.json';
-import standardReportData from '@/data/standard_report.json';
-import premiumReportData from '@/data/premium_report.json';
-import { saveValidationSession, saveInterviewAnswer, updateSessionStatus, getReportByThreadId } from '@/lib/supabase';
+import { saveValidationSession, saveInterviewAnswer, updateSessionStatus, getReportByThreadId, supabase } from '@/lib/supabase';
 
 // API configuration - change this to point to your backend
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 // Use mock data when backend is unavailable (set via env var)
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true';
+
+const getHeaders = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`;
+    headers['X-User-Id'] = session.user.id;
+  }
+  return headers;
+};
 
 const mockQuestions = [
   "Let's start with the core problem you're solving. Can you tell me about a specific moment when you or someone you know experienced this friction? What was the actual cost or consequence?",
@@ -65,13 +74,16 @@ export async function submitIdea(description: string): Promise<SubmitResponse> {
 
   const res = await fetch(`${API_BASE_URL}/submit`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    headers: await getHeaders(),
     body: JSON.stringify({ detailed_description: description }),
   });
   if (!res.ok) throw new Error('Failed to submit idea');
   const data = await res.json();
-  // Save to Supabase
-  saveValidationSession(data.thread_id, description).catch(console.error);
+  
+  // Save to Supabase with user association
+  const { data: { session } } = await supabase.auth.getSession();
+  saveValidationSession(data.thread_id, description, session?.user?.id).catch(console.error);
+  
   return data;
 }
 
@@ -102,7 +114,7 @@ export async function submitAnswer(threadId: string, answer: string, currentQues
 
   const res = await fetch(`${API_BASE_URL}/answer/${threadId}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    headers: await getHeaders(),
     body: JSON.stringify({ answer }),
   });
   if (!res.ok) throw new Error('Failed to submit answer');
@@ -128,15 +140,21 @@ export async function getReport(threadId: string, tier: string = 'free') {
 
   if (USE_MOCK) {
     await new Promise(r => setTimeout(r, 800));
-    if (tier === 'premium') return premiumReportData;
-    if (tier === 'standard') return standardReportData;
-    if (tier === 'basic') return basicReportData;
-    return freeReportData;
+    // Mock data is no longer supported for reports to ensure backend consistency
+    return {
+      thread_id: threadId,
+      tier: tier,
+      report_data: { 
+        title: "Mock Report (Backend Needed)", 
+        go_no_go_score: 50,
+        executive_summary: { problem_summary: "Enable backend to see real analysis." }
+      }
+    };
   }
 
   // Pass tier as query param to backend so it knows which report to return
   const res = await fetch(`${API_BASE_URL}/report/${threadId}?tier=${tier}`, {
-    headers: { 'Accept': 'application/json' },
+    headers: await getHeaders(),
   });
   if (!res.ok) throw new Error('Failed to fetch report');
   return res.json();
@@ -161,10 +179,20 @@ export async function upgradeReport(threadId: string, tier: string, customModule
 
   const res = await fetch(`${API_BASE_URL}/upgrade/${threadId}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    headers: await getHeaders(),
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error('Failed to upgrade');
+  return res.json();
+}
+
+export async function upgradeProfile(tier: string): Promise<{ status: string; tier: string }> {
+  const res = await fetch(`${API_BASE_URL}/profile/upgrade`, {
+    method: 'POST',
+    headers: await getHeaders(),
+    body: JSON.stringify({ tier }),
+  });
+  if (!res.ok) throw new Error('Failed to upgrade profile');
   return res.json();
 }
 
@@ -190,4 +218,24 @@ export function getScoreBgClass(score: number, max: number = 100): string {
   if (pct <= 60) return 'bg-score-yellow';
   if (pct <= 80) return 'bg-score-green';
   return 'bg-score-blue';
+}
+
+export async function adminApprove(threadId: string, editedReport?: any): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${API_BASE_URL}/admin/approve/${threadId}`, {
+    method: 'POST',
+    headers: await getHeaders(),
+    body: JSON.stringify({ edited_report: editedReport }),
+  });
+  if (!res.ok) throw new Error('Failed to approve report');
+  return res.json();
+}
+
+export async function adminSave(threadId: string, editedReport: any): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${API_BASE_URL}/admin/save/${threadId}`, {
+    method: 'POST',
+    headers: await getHeaders(),
+    body: JSON.stringify({ edited_report: editedReport }),
+  });
+  if (!res.ok) throw new Error('Failed to save report edits');
+  return res.json();
 }

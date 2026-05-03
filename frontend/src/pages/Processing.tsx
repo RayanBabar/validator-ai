@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, Search, BarChart3, Target, FileText, Mail, Bookmark, Loader2, CheckCircle } from 'lucide-react';
+import { Brain, Search, BarChart3, Target, FileText, Mail, Bookmark, Loader2, CheckCircle, Shield } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { FloatingOrbs } from '@/components/FloatingOrbs';
-import { subscribeToReportUpdates, getReportByThreadId } from '@/lib/supabase';
+import { subscribeToReportUpdates, getReportByThreadId, supabase } from '@/lib/supabase';
 import { getReport } from '@/lib/api';
 
 const statusMessages = [
@@ -27,11 +27,13 @@ export default function Processing() {
   const [email, setEmail] = useState('');
   const [emailSubmitted, setEmailSubmitted] = useState(false);
   const [reportReady, setReportReady] = useState(false);
+  const [waitingForAdmin, setWaitingForAdmin] = useState(false);
 
   const tier = localStorage.getItem('validateai_upgrade_tier') || 'standard';
 
   const handleReportReady = useCallback((reportTier: string) => {
     setReportReady(true);
+    setWaitingForAdmin(false);
     setTimeout(() => {
       navigate(`/report/${threadId}?tier=${reportTier}`);
     }, 2000);
@@ -49,45 +51,66 @@ export default function Processing() {
   useEffect(() => {
     if (!threadId) return;
 
-    if (USE_MOCK) {
-      // Mock mode: auto-redirect after 15 seconds
-      const timeout = setTimeout(() => {
-        handleReportReady(tier);
-      }, 15000);
-      return () => clearTimeout(timeout);
-    }
-
     // Real mode: Subscribe to Supabase realtime updates
-    const unsubscribe = subscribeToReportUpdates(threadId, (payload) => {
+    const channel = supabase
+      .channel(`session-${threadId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'validation_sessions',
+          filter: `thread_id=eq.${threadId}`,
+        },
+        (payload) => {
+          const newStatus = payload.new.status;
+          console.log('Session status update:', newStatus);
+          if (newStatus === 'waiting_for_admin_approval') {
+            setWaitingForAdmin(true);
+          } else if (newStatus === 'report_ready' || newStatus === 'free_report_ready') {
+            handleReportReady(payload.new.tier || tier);
+          }
+        }
+      )
+      .subscribe();
+
+    const unsubscribeReport = subscribeToReportUpdates(threadId, (payload) => {
       console.log('Report ready via realtime:', payload);
       handleReportReady(payload.tier);
     });
 
-    // Also poll every 10 seconds as a fallback
+    // Also poll every 5 seconds for status updates
     const pollInterval = setInterval(async () => {
       try {
-        // Check Supabase directly
+        const { data: session } = await supabase
+          .from('validation_sessions')
+          .select('status, tier')
+          .eq('thread_id', threadId)
+          .single();
+        
+        if (session) {
+          if (session.status === 'waiting_for_admin_approval') {
+            setWaitingForAdmin(true);
+          } else if (session.status === 'report_ready' || session.status === 'free_report_ready') {
+            handleReportReady(session.tier || tier);
+            clearInterval(pollInterval);
+          }
+        }
+
+        // Check if report actually exists yet
         const supabaseReport = await getReportByThreadId(threadId);
         if (supabaseReport) {
           handleReportReady(supabaseReport.tier);
           clearInterval(pollInterval);
-          return;
-        }
-
-        // Also check backend API
-        const report = await getReport(threadId, tier);
-        if (report && report.report_data) {
-          handleReportReady(tier);
-          clearInterval(pollInterval);
         }
       } catch (err) {
-        // Report not ready yet, continue polling
-        console.log('Report not ready yet, continuing to poll...');
+        console.log('Polling error or not ready:', err);
       }
-    }, 10000);
+    }, 5000);
 
     return () => {
-      unsubscribe();
+      supabase.removeChannel(channel);
+      unsubscribeReport();
       clearInterval(pollInterval);
     };
   }, [threadId, tier, handleReportReady]);
@@ -124,6 +147,8 @@ export default function Processing() {
               <div className="absolute inset-0 flex items-center justify-center">
                 {reportReady ? (
                   <CheckCircle className="w-10 h-10 text-primary" />
+                ) : waitingForAdmin ? (
+                  <Shield className="w-10 h-10 text-primary animate-pulse" />
                 ) : (
                   <Brain className="w-10 h-10 text-primary" />
                 )}
@@ -131,11 +156,15 @@ export default function Processing() {
             </div>
 
             <h1 className="text-2xl font-bold mb-3">
-              {reportReady ? 'Your Report is Ready!' : 'Generating Your Premium Report'}
+              {reportReady 
+                ? 'Your Report is Ready!' 
+                : waitingForAdmin 
+                ? 'Awaiting Academic Approval' 
+                : `Generating Your ${tier} Analysis`}
             </h1>
 
             {/* Animated Status */}
-            {!reportReady && (
+            {!reportReady && !waitingForAdmin && (
               <div className="h-8 mb-6">
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -150,6 +179,18 @@ export default function Processing() {
                   </motion.div>
                 </AnimatePresence>
               </div>
+            )}
+
+            {waitingForAdmin && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mb-8 p-4 glass rounded-xl border-primary/20"
+              >
+                <p className="text-sm text-muted-foreground italic">
+                  Your comprehensive {tier} analysis is complete and is now being reviewed by an academic administrator for final quality assurance.
+                </p>
+              </motion.div>
             )}
 
             {reportReady ? (
@@ -168,24 +209,33 @@ export default function Processing() {
                 {/* Progress */}
                 <div className="glass rounded-xl p-6 mb-6">
                   <div className="flex items-center justify-center gap-2 mb-3">
-                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                    <span className="text-sm font-medium">Processing...</span>
+                    {waitingForAdmin ? (
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                    ) : (
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    )}
+                    <span className="text-sm font-medium">
+                      {waitingForAdmin ? 'Analysis Complete' : 'Processing...'}
+                    </span>
                   </div>
                   <div className="h-2 rounded-full bg-secondary overflow-hidden mb-3">
                     <motion.div
                       className="h-full rounded-full"
                       style={{ background: 'var(--gradient-accent)' }}
-                      animate={{ width: ['0%', '30%', '50%', '65%', '80%', '90%'] }}
-                      transition={{ duration: 60, ease: 'easeOut' }}
+                      initial={{ width: '0%' }}
+                      animate={{ width: waitingForAdmin ? '100%' : '95%' }}
+                      transition={{ duration: waitingForAdmin ? 1 : 60, ease: 'easeOut' }}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Your <span className="capitalize">{tier}</span> report will be ready in ~5-10 minutes
+                    {waitingForAdmin 
+                      ? 'Final human-in-the-loop verification in progress' 
+                      : `Your ${tier} analysis will be ready in ~5-10 minutes`}
                   </p>
                 </div>
 
                 {/* Email notification */}
-                {!emailSubmitted ? (
+                {!emailSubmitted && !waitingForAdmin && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -212,7 +262,9 @@ export default function Processing() {
                       </button>
                     </div>
                   </motion.div>
-                ) : (
+                )}
+                
+                {emailSubmitted && !waitingForAdmin && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -229,20 +281,41 @@ export default function Processing() {
                   transition={{ delay: 0.5 }}
                   className="glass rounded-xl p-6"
                 >
-                  <h3 className="text-sm font-medium mb-3">While you wait...</h3>
+                  <h3 className="text-sm font-medium mb-3">
+                    {waitingForAdmin ? 'Final Review Checklist' : 'While you wait...'}
+                  </h3>
                   <ul className="space-y-3 text-left">
-                    <li className="flex items-start gap-3 text-sm text-muted-foreground">
-                      <Bookmark className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                      <span>Bookmark this page to come back anytime</span>
-                    </li>
-                    <li className="flex items-start gap-3 text-sm text-muted-foreground">
-                      <FileText className="w-4 h-4 text-accent mt-0.5 shrink-0" />
-                      <span>Prepare your pitch deck outline based on the free report insights</span>
-                    </li>
-                    <li className="flex items-start gap-3 text-sm text-muted-foreground">
-                      <Target className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                      <span>Start listing potential early adopters in your target market</span>
-                    </li>
+                    {waitingForAdmin ? (
+                      <>
+                        <li className="flex items-start gap-3 text-sm text-muted-foreground">
+                          <CheckCircle className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                          <span>Verifying cross-module consistency</span>
+                        </li>
+                        <li className="flex items-start gap-3 text-sm text-muted-foreground">
+                          <CheckCircle className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                          <span>Validating financial projection logic</span>
+                        </li>
+                        <li className="flex items-start gap-3 text-sm text-muted-foreground">
+                          <Loader2 className="w-4 h-4 animate-spin text-accent mt-0.5 shrink-0" />
+                          <span>Preparing professional executive summary</span>
+                        </li>
+                      </>
+                    ) : (
+                      <>
+                        <li className="flex items-start gap-3 text-sm text-muted-foreground">
+                          <Bookmark className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                          <span>Bookmark this page to come back anytime</span>
+                        </li>
+                        <li className="flex items-start gap-3 text-sm text-muted-foreground">
+                          <FileText className="w-4 h-4 text-accent mt-0.5 shrink-0" />
+                          <span>Prepare your pitch deck outline based on the free report insights</span>
+                        </li>
+                        <li className="flex items-start gap-3 text-sm text-muted-foreground">
+                          <Target className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                          <span>Start listing potential early adopters in your target market</span>
+                        </li>
+                      </>
+                    )}
                   </ul>
                 </motion.div>
               </>

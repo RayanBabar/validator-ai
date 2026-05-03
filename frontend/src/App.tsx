@@ -4,12 +4,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Submit from "./pages/Submit";
 import Interview from "./pages/Interview";
 import Report from "./pages/Report";
 import Upgrade from "./pages/Upgrade";
 import Processing from "./pages/Processing";
+import Dashboard from "./pages/Dashboard";
+import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,11 +26,16 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/submit" element={<Submit />} />
-            <Route path="/interview/:threadId" element={<Interview />} />
-            <Route path="/report/:threadId" element={<Report />} />
-            <Route path="/upgrade/:threadId" element={<Upgrade />} />
-            <Route path="/processing/:threadId" element={<Processing />} />
+            
+            {/* Protected Routes */}
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/submit" element={<ProtectedRoute><Submit /></ProtectedRoute>} />
+            <Route path="/interview/:threadId" element={<ProtectedRoute><Interview /></ProtectedRoute>} />
+            <Route path="/report/:threadId" element={<ProtectedRoute><Report /></ProtectedRoute>} />
+            <Route path="/upgrade/:threadId" element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
+            <Route path="/processing/:threadId" element={<ProtectedRoute><Processing /></ProtectedRoute>} />
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

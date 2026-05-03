@@ -321,10 +321,18 @@ async def verify_cross_module_consistency(
             f"summarizing {len(modules_to_summarize)} new/changed modules"
         )
 
-    # Execute only needed summarizations in parallel
+    # Execute only needed summarizations with limited concurrency to avoid 429/400 errors
     if modules_to_summarize:
+        semaphore = asyncio.Semaphore(2)  # Limit to 2 parallel summarization calls
+        
+        async def sem_summarize(name, data):
+            async with semaphore:
+                res = await summarize_for_check(name, data)
+                await asyncio.sleep(0.5)  # Small cooldown between calls
+                return res
+
         tasks = [
-            summarize_for_check(name, data)
+            sem_summarize(name, data)
             for name, data in modules_to_summarize.items()
         ]
         results = await asyncio.gather(*tasks)
@@ -336,11 +344,18 @@ async def verify_cross_module_consistency(
                 summary_cache[name] = formatted
 
     # Build full module data from cache (in original module order)
-    module_summaries = [
-        summary_cache[name] for name in modules if name in summary_cache
-    ]
+    module_summaries = []
+    for name in modules:
+        if name in summary_cache:
+            module_summaries.append(summary_cache[name])
+        else:
+            # Fallback if somehow missing from cache/summarization failed
+            logger.warning(f"Module {name} missing from summary cache, using raw truncation")
+            module_summaries.append(f"**{name}**: {str(modules[name])[:1000]}...")
 
     module_data = "\n\n".join(module_summaries)
+    if len(module_data) > 5000:  # Reduced limit for stability
+        module_data = module_data[:5000] + "... [TRUNCATED FOR LENGTH]"
 
     try:
         result = await LLMService.invoke_structured(

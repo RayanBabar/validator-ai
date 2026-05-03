@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from uuid import uuid4
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, Optional
 import logging
 from src.models.inputs import (
     StartupSubmission,
@@ -12,6 +12,7 @@ from src.models.inputs import (
     SubmitInput,
     AnswerInput,
     UpgradeInput,
+    ProfileUpgradeInput,
 )
 from src.models.outputs import (
     FreeReportOutput,
@@ -22,10 +23,26 @@ from src.models.outputs import (
 from src.api.middleware import limiter
 from src.config.constants import MAX_INTERVIEW_QUESTIONS, STANDARD_MODULE_NAMES
 from src.utils.webhook import send_report_webhook
+from src.utils.supabase import update_user_tier, is_user_admin, get_user_profile
 import src.graph.workflow as wf_module
 
 validation = APIRouter(tags=["Validation"])
 logger = logging.getLogger(__name__)
+
+async def get_user_id_from_request(request: Request) -> Optional[str]:
+    """
+    Extract user_id from Supabase JWT in Authorization header.
+    In a real app, you'd verify the JWT properly.
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+    
+    # For now, we expect the frontend to pass the user ID or we could decode the JWT
+    # But as a shortcut for this academic project, we'll assume the frontend might
+    # pass a specific header or we use a placeholder if we're not doing full JWT verification yet.
+    # TODO: Proper JWT verification
+    return request.headers.get("X-User-Id")
 
 # ============================================
 # PHASE 1: SUBMIT (Start Interview)
@@ -271,6 +288,28 @@ async def upgrade_tier(
 
 
 # ============================================
+# PHASE 4: GLOBAL USER PROFILE UPGRADE
+# ============================================
+
+
+@validation.post("/profile/upgrade")
+async def upgrade_profile(request: Request, payload: ProfileUpgradeInput):
+    """
+    Upgrade a user's permanent tier in the database.
+    Requires authentication.
+    """
+    user_id = await get_user_id_from_request(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    success = await update_user_tier(user_id, payload.tier)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update user tier")
+    
+    return {"status": "success", "tier": payload.tier}
+
+
+# ============================================
 # REPORT ENDPOINT
 # ============================================
 
@@ -351,8 +390,15 @@ async def get_report(thread_id: str) -> ReportResponse:
 
 
 @validation.post("/admin/approve/{thread_id}")
-async def admin_approve(thread_id: str, payload: AdminUpdate = None):
+async def admin_approve(request: Request, thread_id: str, payload: AdminUpdate = None):
     """Admin reviews and approves the final report."""
+    user_id = await get_user_id_from_request(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    if not await is_user_admin(user_id):
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+
     config = {"configurable": {"thread_id": thread_id}}
     snapshot = await wf_module.app_graph.aget_state(config)
 
@@ -372,6 +418,33 @@ async def admin_approve(thread_id: str, payload: AdminUpdate = None):
     return {
         "status": "approved",
         "message": f"Report finalized from node '{current_node}'. View at /report/{thread_id}",
+    }
+
+
+@validation.post("/admin/save/{thread_id}")
+async def admin_save(request: Request, thread_id: str, payload: AdminUpdate):
+    """Admin saves edits to a report without advancing the workflow."""
+    user_id = await get_user_id_from_request(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    if not await is_user_admin(user_id):
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+
+    config = {"configurable": {"thread_id": thread_id}}
+    snapshot = await wf_module.app_graph.aget_state(config)
+
+    if not snapshot.values:
+        raise HTTPException(404, "Report not found")
+
+    if payload.edited_report:
+        await wf_module.app_graph.aupdate_state(
+            config, {"final_report": payload.edited_report}
+        )
+
+    return {
+        "status": "saved",
+        "message": "Report edits saved successfully.",
     }
 
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { X, Mail, Lock, Loader2, ArrowRight, Sparkles } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -18,6 +19,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: AuthModal
     const [magicLinkSent, setMagicLinkSent] = useState(false);
 
     const { signIn, signUp, signInWithMagicLink, linkCurrentSession } = useAuth();
+    const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -34,11 +36,13 @@ export function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: AuthModal
                 if (error) throw error;
                 await linkCurrentSession();
                 onClose();
+                navigate('/dashboard');
             } else {
                 const { error } = await signIn(email, password);
                 if (error) throw error;
                 await linkCurrentSession();
                 onClose();
+                navigate('/dashboard');
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');

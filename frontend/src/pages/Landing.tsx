@@ -26,26 +26,26 @@ const steps = [
 const tiers = [
   {
     name: 'Free',
-    price: '$0',
+    desc: 'Basic viability assessment',
     features: ['Viability Score', '5 Score Dimensions', 'Value Proposition', 'Customer Profile', 'Next Step'],
     highlight: false,
   },
   {
     name: 'Basic',
-    price: '$49',
+    desc: 'Core business model validation',
     features: ['Everything in Free', 'Business Model Canvas', 'Executive Summary', 'Go/No-Go Score'],
     highlight: false,
   },
   {
     name: 'Standard',
-    price: '$149',
+    desc: 'Comprehensive market analysis',
     features: ['Everything in Basic', 'Full Market Analysis', 'Competitive Intelligence', 'Financial Projections', 'Go-to-Market Strategy'],
     highlight: true,
-    badge: 'Most Popular',
+    badge: 'Recommended',
   },
   {
     name: 'Premium',
-    price: '$299',
+    desc: 'Investor-grade validation',
     features: ['Everything in Standard', 'Investor Pitch Deck', 'Custom Module Selection', 'Priority Processing'],
     highlight: false,
   },
@@ -55,7 +55,7 @@ const testimonials = [
   {
     name: 'Sarah Chen',
     role: 'CEO, FinFlow',
-    text: "ValidateAI saved us months of guesswork. The market analysis alone was worth 10x the price. We raised our seed round using their insights.",
+    text: "ValidateAI saved us months of guesswork. The market analysis alone was invaluable for our research. We successfully defended our project using their insights.",
     avatar: 'SC',
   },
   {
@@ -262,10 +262,10 @@ export default function Landing() {
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Simple, Transparent <span className="gradient-text">Pricing</span>
+              Research <span className="gradient-text">Tiers</span>
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Start free, upgrade when you need deeper insights
+              Choose the depth of academic validation required for your startup project.
             </p>
           </motion.div>
 
@@ -287,7 +287,7 @@ export default function Landing() {
                   </div>
                 )}
                 <h3 className="text-lg font-semibold mb-1">{tier.name}</h3>
-                <div className="text-3xl font-bold mb-4">{tier.price}</div>
+                <div className="text-sm text-muted-foreground mb-4 italic">{tier.desc}</div>
                 <ul className="space-y-2 mb-6">
                   {tier.features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
@@ -304,7 +304,7 @@ export default function Landing() {
                       : 'glass hover:bg-secondary/50 text-foreground'
                   }`}
                 >
-                  {tier.price === '$0' ? 'Start Free' : `Get ${tier.name}`}
+                  {tier.name === 'Free' ? 'Activate Free Tier' : `Select ${tier.name}`}
                 </Link>
               </motion.div>
             ))}

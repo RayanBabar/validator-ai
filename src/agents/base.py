@@ -95,21 +95,34 @@ class LLMService:
             messages_val = await prompt.ainvoke(invoke_args or {})
             messages = messages_val.to_messages()
         
-        # 2. Invoke LLM
+        # 2. Invoke LLM with retry logic
         async with LLMService._semaphore:
-            try:
-                if parse_json:
-                    # Use with_structured_output(dict) for reliable JSON extraction
-                    structured_llm = primary.with_structured_output(dict, method="json_mode", include_raw=False)
-                    result = await structured_llm.ainvoke(messages)
-                else:
-                    response = await primary.ainvoke(messages)
-                    result = response
-                
-                return result
-            except Exception as e:
-                logger.error(f"LLM primary failed: {e}")
-                raise e
+            max_retries = 3
+            backoff = 1.0
+            
+            for attempt in range(max_retries):
+                try:
+                    if parse_json:
+                        # Use with_structured_output(dict) for reliable JSON extraction
+                        structured_llm = primary.with_structured_output(dict, method="json_mode", include_raw=False)
+                        result = await structured_llm.ainvoke(messages)
+                        return result
+                    else:
+                        response = await primary.ainvoke(messages)
+                        raw_content = response.content if isinstance(response.content, str) else str(response.content)
+                        return raw_content
+                except Exception as e:
+                    is_rate_limit = "429" in str(e) or "Too Many Requests" in str(e)
+                    is_bad_request = "400" in str(e) and "bmc" not in str(messages)
+                    
+                    if (is_rate_limit or is_bad_request) and attempt < max_retries - 1:
+                        wait_time = backoff * (2 ** attempt)
+                        logger.warning(f"LLM call failed (attempt {attempt+1}/{max_retries}). Retrying in {wait_time}s... Error: {e}")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    
+                    logger.error(f"LLM primary failed after {attempt+1} attempts: {e}")
+                    raise e
     
     @staticmethod
     async def invoke_structured(
@@ -121,222 +134,159 @@ class LLMService:
     ) -> BaseModel:
         """
         Invoke LLM with structured output. Uses with_structured_output as primary path,
-        with a full manual JSON extraction fallback for proxy providers that return
-        markdown-wrapped JSON or nest results under a wrapper key.
+        with a full manual JSON extraction fallback for proxy providers.
         """
         primary = llm_complex if use_complex else llm_fast
         
-        # 1. Generate messages from prompt
         if isinstance(prompt, list):
             messages = prompt
         else:
             messages_val = await prompt.ainvoke(invoke_args or {})
             messages = messages_val.to_messages()
-            
+
+        raw_content: Optional[str] = None
+        
         async with LLMService._semaphore:
-            try:
-                raw_content: Optional[str] = None
-                
-                # --- Phase 1: Try with_structured_output(json_mode) ---
-                # json_mode forces the LLM to follow the prompt's JSON template (snake_case fields).
-                # Function calling mode ignores the prompt template, causing camelCase hallucinations.
+            max_retries = 3
+            backoff = 1.5
+            
+            for attempt in range(max_retries):
                 try:
-                    structured_llm = primary.with_structured_output(
-                        schema_class,
-                        method="json_mode",
-                        include_raw=True  # Captures parse errors instead of raising
-                    )
+                    structured_llm = primary.with_structured_output(schema_class, include_raw=True)
                     raw_result = await structured_llm.ainvoke(messages)
                     
-                    # Happy path: parser succeeded
                     if raw_result.get("parsed") is not None:
                         return raw_result["parsed"]
                     
-                    # Parser returned None — extract raw content for fallback
                     raw_msg = raw_result.get("raw")
                     if raw_msg is not None:
                         raw_content = raw_msg.content if isinstance(raw_msg.content, str) else str(raw_msg.content)
-                    
-                    logger.warning(
-                        f"with_structured_output parse failed for {schema_class.__name__}. "
-                        f"Error: {raw_result.get('parsing_error')} — falling back to manual parse."
-                    )
-
-                except Exception as structured_err:
-                    # with_structured_output raised (e.g. LLM wrapped JSON in markdown code blocks)
-                    # Fall back to a raw LLM call to get the content for manual parsing
-                    logger.warning(
-                        f"with_structured_output raised for {schema_class.__name__}: {structured_err}. "
-                        f"Invoking raw LLM for manual fallback."
-                    )
-                    raw_response = await primary.ainvoke(messages)
-                    raw_content = raw_response.content if isinstance(raw_response.content, str) else str(raw_response.content)
-                
-                # --- Phase 2: Manual JSON extraction fallback ---
-                if not raw_content:
-                    raise ValueError(f"No content available for manual fallback for {schema_class.__name__}")
-                
-                # Extract JSON from content (handles markdown code blocks)
-                json_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw_content)
-                json_str = json_match.group(1).strip() if json_match else raw_content.strip()
-                
-                # Find first { ... }
-                start_idx = json_str.find("{")
-                end_idx = json_str.rfind("}")
-                if start_idx != -1 and end_idx != -1:
-                    json_str = json_str[start_idx:end_idx + 1]
-                
-                # Attempt JSON parse — with truncation recovery.
-                # The LLM sometimes hits token limits mid-generation, leaving malformed JSON.
-                # Walk back from the last '}' until we find a valid JSON boundary.
-                def _try_parse_json(s: str) -> dict:
-                    try:
-                        return json.loads(s)
-                    except json.JSONDecodeError as e:
-                        # Case 1: "Extra data" — LLM appended text/second JSON after first object.
-                        # Extract the first balanced { ... } by tracking brace depth.
-                        if "Extra data" in str(e):
-                            depth = 0
-                            in_string = False
-                            escape_next = False
-                            for i, ch in enumerate(s):
-                                if escape_next:
-                                    escape_next = False
-                                    continue
-                                if ch == '\\' and in_string:
-                                    escape_next = True
-                                    continue
-                                if ch == '"':
-                                    in_string = not in_string
-                                if not in_string:
-                                    if ch == '{':
-                                        depth += 1
-                                    elif ch == '}':
-                                        depth -= 1
-                                        if depth == 0:
-                                            try:
-                                                return json.loads(s[:i + 1])
-                                            except json.JSONDecodeError:
-                                                break
-                        
-                        # Case 2: Truncated JSON — walk back from the last '}' positions
-                        brace_positions = [i for i, c in enumerate(s) if c == '}']
-                        for pos in reversed(brace_positions[:-1]):  # skip the last (already tried)
-                            candidate = s[:pos + 1]
-                            if candidate.count('{') <= candidate.count('}'):
-                                try:
-                                    return json.loads(candidate)
-                                except json.JSONDecodeError:
-                                    continue
-                        raise  # Re-raise original error if nothing works
-                
-                parsed_dict = _try_parse_json(json_str)
-                
-                # Prune empty {} objects from list fields (LLM truncation artifact)
-                for k, v in list(parsed_dict.items()):
-                    if isinstance(v, list):
-                        parsed_dict[k] = [item for item in v if item != {}]
-                
-                def _to_snake(s: str) -> str:
-                    """Convert camelCase / PascalCase to snake_case."""
-                    s = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', s)
-                    s = re.sub(r'([a-z\d])([A-Z])', r'\1_\2', s)
-                    return s.lower()
-                
-                def _normalize_keys(d: dict) -> dict:
-                    """Recursively snake_case all keys in a dict (top level only for schema matching)."""
-                    return {_to_snake(k): v for k, v in d.items()}
-                
-                # Unwrap single-key wrappers.
-                # Strategy: if there's exactly one key and its value is a dict, always unwrap.
-                # The guard that checked schema_fields was too strict because the inner dict
-                # often has camelCase keys that don't match snake_case schema fields.
-                if (
-                    isinstance(parsed_dict, dict)
-                    and len(parsed_dict) == 1
-                    and isinstance(list(parsed_dict.values())[0], dict)
-                ):
-                    wrapper_key = list(parsed_dict.keys())[0]
-                    inner = parsed_dict[wrapper_key]
-                    schema_fields = set(schema_class.model_fields.keys())
-                    inner_snake = _normalize_keys(inner)
-                    # Unwrap if inner matches schema fields (after normalizing) OR if wrapper key
-                    # is the class name (e.g. "BusinessModelCanvas" wrapping BusinessModelCanvas)
-                    if (
-                        schema_fields & set(inner_snake.keys())
-                        or _to_snake(wrapper_key) == _to_snake(schema_class.__name__)
-                        or not (schema_fields & set(parsed_dict.keys()))  # top-level has no schema fields
-                    ):
-                        logger.info(f"Unwrapping LLM response from '{wrapper_key}' wrapper key for {schema_class.__name__}")
-                        parsed_dict = inner
-                
-                # Also handle "properties" JSON-Schema hallucination
-                if (
-                    isinstance(parsed_dict, dict)
-                    and "properties" in parsed_dict
-                    and isinstance(parsed_dict["properties"], dict)
-                    and "properties" not in schema_class.model_fields
-                ):
-                    logger.warning(f"Unwrapping LLM 'properties' wrapper for {schema_class.__name__}")
-                    meta = {k: v for k, v in parsed_dict.items() if k != "properties"}
-                    parsed_dict = parsed_dict["properties"]
-                    for k, v in meta.items():
-                        if k in schema_class.model_fields and k not in parsed_dict:
-                            parsed_dict[k] = v
-                
-                # Normalize camelCase keys → snake_case to match Pydantic model fields.
-                # Only remap keys that don't already exist in snake_case form.
-                schema_fields = set(schema_class.model_fields.keys())
-                if not schema_fields.issubset(set(parsed_dict.keys())):
-                    normalized = {}
-                    for k, v in parsed_dict.items():
-                        snake_k = _to_snake(k)
-                        # Use the snake version if it's a known field and original key isn't
-                        if snake_k in schema_fields and k not in schema_fields:
-                            normalized[snake_k] = v
-                        else:
-                            normalized[k] = v
-                    parsed_dict = normalized
-                
-                # Type coercion: fix mismatched types between LLM output and Pydantic schema
-                for field_name, field_info in schema_class.model_fields.items():
-                    if field_name not in parsed_dict:
+                    break
+                except Exception as e:
+                    if ("429" in str(e) or "400" in str(e)) and attempt < max_retries - 1:
+                        wait_time = backoff * (2 ** attempt)
+                        await asyncio.sleep(wait_time)
                         continue
-                    val = parsed_dict[field_name]
-                    ann = field_info.annotation
-                    ann_str = str(ann)
                     
-                    # dict → str (e.g. LLM returns pricing_strategy as an object)
-                    is_str_field = ann is str or ann_str in ("str", "<class 'str'>")
-                    if is_str_field and isinstance(val, dict):
-                        logger.warning(f"Coercing dict→str for field '{field_name}' in {schema_class.__name__}")
-                        parsed_dict[field_name] = json.dumps(val, ensure_ascii=False)
-                    
-                    # List[dict] → List[str] (e.g. report_highlights returned as list of objects)
-                    is_list_str = "List[str]" in ann_str or ann_str in ("typing.List[str]",)
-                    if is_list_str and isinstance(val, list) and val and isinstance(val[0], dict):
-                        logger.warning(f"Coercing List[dict]→List[str] for field '{field_name}' in {schema_class.__name__}")
-                        coerced = []
-                        for item in val:
-                            if isinstance(item, dict):
-                                # Try common text keys first
-                                text = (
-                                    item.get("highlight") or item.get("text") or
-                                    item.get("title") or item.get("description") or
-                                    item.get("content") or item.get("value") or
-                                    next((v for v in item.values() if isinstance(v, str)), None) or
-                                    json.dumps(item, ensure_ascii=False)
-                                )
-                                coerced.append(str(text))
-                            else:
-                                coerced.append(str(item))
-                        parsed_dict[field_name] = coerced
+                    try:
+                        raw_response = await primary.ainvoke(messages)
+                        raw_content = raw_response.content if isinstance(raw_response.content, str) else str(raw_response.content)
+                        break
+                    except Exception:
+                        raise e
+        
+        if not raw_content:
+            raise ValueError(f"No content for {schema_class.__name__}")
+
+        # --- Phase 2: Manual JSON extraction fallback ---
+        # Extract JSON from content (handles markdown code blocks)
+        json_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw_content)
+        json_str = json_match.group(1).strip() if json_match else raw_content.strip()
+        
+        # Find first { ... }
+        start_idx = json_str.find("{")
+        end_idx = json_str.rfind("}")
+        if start_idx != -1 and end_idx != -1:
+            json_str = json_str[start_idx:end_idx + 1]
+        
+        # Attempt JSON parse with recovery
+        def _try_parse_json(s: str) -> dict:
+            try:
+                return json.loads(s)
+            except json.JSONDecodeError as e:
+                # Case 1: "Extra data"
+                if "Extra data" in str(e):
+                    depth = 0
+                    in_string = False
+                    escape_next = False
+                    for i, ch in enumerate(s):
+                        if escape_next:
+                            escape_next = False
+                            continue
+                        if ch == '\\' and in_string:
+                            escape_next = True
+                            continue
+                        if ch == '"':
+                            in_string = not in_string
+                        if not in_string:
+                            if ch == '{':
+                                depth += 1
+                            elif ch == '}':
+                                depth -= 1
+                                if depth == 0:
+                                    try:
+                                        return json.loads(s[:i + 1])
+                                    except json.JSONDecodeError:
+                                        break
+
+                # Case 2: Common syntax errors (missing commas)
+                repaired = s
+                # Comma between a value and a next key
+                repaired = re.sub(r'(\d|true|false|null|\}|\])\s*(")', r'\1, \2', repaired)
+                # Comma between two strings
+                repaired = re.sub(r'("[\s\S]*?")\s*(")', r'\1, \2', repaired)
+                repaired = repaired.replace(', ,', ',').replace(',,', ',')
                 
-                return schema_class.model_validate(parsed_dict)
+                try:
+                    return json.loads(repaired)
+                except json.JSONDecodeError:
+                    pass
                 
-            except Exception as e:
-                logger.error(f"Structured output failed for {schema_class.__name__}: {e}")
-                raise e
+                # Case 3: Truncated JSON
+                brace_positions = [i for i, c in enumerate(s) if c == '}']
+                for pos in reversed(brace_positions[:-1]):
+                    candidate = s[:pos + 1]
+                    if candidate.count('{') <= candidate.count('}'):
+                        try:
+                            return json.loads(candidate)
+                        except json.JSONDecodeError:
+                            continue
+                raise
+        
+        parsed_dict = _try_parse_json(json_str)
+        
+        def _to_snake(s: str) -> str:
+            """Convert camelCase / PascalCase to snake_case."""
+            s = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', s)
+            s = re.sub(r'([a-z\d])([A-Z])', r'\1_\2', s)
+            return s.lower()
+
+        def _normalize_keys(obj: Any) -> Any:
+            """Recursively snake_case all keys in a dict/list."""
+            if isinstance(obj, list):
+                return [_normalize_keys(i) for i in obj]
+            if isinstance(obj, dict):
+                return {_to_snake(k): _normalize_keys(v) for k, v in obj.items()}
+            return obj
+
+        # Unwrap single-key wrappers (e.g. {"MarketAnalysis": {...}})
+        if isinstance(parsed_dict, dict) and len(parsed_dict) == 1:
+            wrapper_key = list(parsed_dict.keys())[0]
+            val = parsed_dict[wrapper_key]
+            if isinstance(val, dict):
+                # Only unwrap if the wrapper key matches the schema or looks like a wrapper
+                if _to_snake(wrapper_key) == _to_snake(schema_class.__name__) or not (set(schema_class.model_fields.keys()) & set(parsed_dict.keys())):
+                    parsed_dict = val
+        
+        # Normalize and validate
+        snake_dict = _normalize_keys(parsed_dict)
+        
+        # Type coercion for common mismatches
+        for field_name, field_info in schema_class.model_fields.items():
+            if field_name not in snake_dict:
+                continue
+            val = snake_dict[field_name]
+            ann_str = str(field_info.annotation)
+            
+            # dict -> str coercion
+            if "str" in ann_str and isinstance(val, (dict, list)):
+                snake_dict[field_name] = json.dumps(val, ensure_ascii=False)
+            
+            # list[dict] -> list[str] coercion
+            if "List[str]" in ann_str and isinstance(val, list) and val and isinstance(val[0], dict):
+                snake_dict[field_name] = [json.dumps(i, ensure_ascii=False) for i in val]
+
+        return schema_class.model_validate(snake_dict)
 
 
 # ===========================================

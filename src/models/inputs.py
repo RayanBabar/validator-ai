@@ -32,10 +32,14 @@ class AnswerInput(BaseModel):
     answer: str
 
 
-# Upgrade request (payment handled by frontend)
+# Upgrade request (tier selection handled by frontend)
 class UpgradeInput(BaseModel):
     tier: str  # "basic", "standard", "premium", "custom"
     custom_modules: Optional[List[str]] = None
+
+
+class ProfileUpgradeInput(BaseModel):
+    tier: str  # "basic", "standard", "premium"
 
 
 class AdminUpdate(BaseModel):
@@ -77,7 +81,7 @@ class ValidationState(TypedDict):
     ]  # 0-10: How specific was the founder about context
 
     # Workflow Phase Tracking
-    workflow_phase: str  # "interview" | "free_report" | "paused_for_payment" | "paid_analysis" | "failed"
+    workflow_phase: str  # "interview" | "free_report" | "paused_for_upgrade" | "paid_analysis" | "failed"
 
     # Error Tracking
     error: Optional[bool]  # True if workflow encountered an error

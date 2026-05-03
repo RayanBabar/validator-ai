@@ -170,25 +170,37 @@
 
         {% set rep = data.report_data %}
 
-        <!-- FREE TIER -->
-        {% if data.tier == 'free' and rep %}
+        {% if rep %}
         <div class="section">
+            {% if rep.go_no_go_score %}
+            <h2>Go/No-Go Score: <span style="color: #c0392b;">{{ rep.go_no_go_score }}</span>/100</h2>
+            {% elif rep.viability_score %}
             <h2>Viability Score: <span style="color: #c0392b;">{{ rep.viability_score }}</span>/100</h2>
             <p><span class="label">Status:</span> {{ rep.gauge_status }}</p>
-        </div>
-
-        <div class="section">
-            <h2>Score Breakdown</h2>
-            {% if rep.scores %}
-            {% for k, v in rep.scores.items() %}
-            <div class="score-box">
-                <span>{{ k|replace('_', ' ')|title }}</span>
-                <span class="score-val">{{ v }}/10</span>
-            </div>
-            {% endfor %}
             {% endif %}
         </div>
 
+        {% if rep.scores or rep.score_breakdown %}
+        <div class="section">
+            <h2>Score Breakdown</h2>
+            {% set s_data = rep.score_breakdown if rep.score_breakdown else rep.scores %}
+            {% for dimension, score_data in s_data.items() %}
+            <div class="score-box">
+                <div class="score-header">
+                    <span>{{ dimension|replace('_', ' ')|title }}</span>
+                    <span class="score-val">{{ score_data.score if score_data is mapping else score_data }}/10</span>
+                </div>
+                {% if score_data is mapping and score_data.reasoning %}
+                <div class="score-reasoning">
+                    {{ score_data.reasoning }}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if rep.value_proposition %}
         <div class="section">
             <h2>Viability Analysis</h2>
             <p><span class="label">Value Proposition:</span> {{ rep.value_proposition }}</p>
@@ -198,60 +210,7 @@
         </div>
         {% endif %}
 
-        <!-- BASIC TIER -->
-        {% if data.tier == 'basic' and rep %}
-        <div class="section">
-            <h2>Go/No-Go Score: <span style="color: #c0392b;">{{ rep.go_no_go_score }}</span>/100</h2>
-        </div>
-
-        <div class="section">
-            <h2>Score Breakdown</h2>
-            {% for k, v in rep.scores.items() %}
-            <div class="score-box">
-                <span>{{ k|replace('_', ' ')|title }}</span>
-                <span class="score-val">{{ v }}/10</span>
-            </div>
-            {% endfor %}
-        </div>
-
-        <div class="section">
-            <h2>Executive Summary</h2>
-
-            {% if rep.executive_summary.problem_summary %}
-            <h3>Problem Summary</h3>
-            <p>{{ rep.executive_summary.problem_summary }}</p>
-            {% endif %}
-
-            {% if rep.executive_summary.proposed_solution %}
-            <h3>Proposed Solution</h3>
-            <p>{{ rep.executive_summary.proposed_solution }}</p>
-            {% endif %}
-
-            {% if rep.executive_summary.report_highlights %}
-            <h3>Report Highlights</h3>
-            <ul>
-                {% for highlight in rep.executive_summary.report_highlights %}
-                <li>{{ highlight }}</li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-
-            {% if rep.executive_summary.recommendation %}
-            <h3>Recommendation</h3>
-            <p><strong>Verdict:</strong> {{ rep.executive_summary.recommendation.go_no_go_verdict }}</p>
-            <p><strong>Justification:</strong> {{ rep.executive_summary.recommendation.rating_justification }}</p>
-
-            {% if rep.executive_summary.recommendation.immediate_action_items %}
-            <h4>Immediate Action Items</h4>
-            <ul>
-                {% for item in rep.executive_summary.recommendation.immediate_action_items %}
-                <li>{{ item }}</li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-            {% endif %}
-        </div>
-
+        {% if rep.business_model_canvas %}
         <div class="section page-break">
             <h2>Business Model Canvas</h2>
             {% for k, v in rep.business_model_canvas.items() %}
@@ -267,29 +226,8 @@
         </div>
         {% endif %}
 
-        <!-- STANDARD TIER -->
-        {% if (data.tier == 'standard' or data.tier == 'premium') and rep %}
-        <div class="section">
-            <h2>Go/No-Go Score: <span style="color: #c0392b;">{{ rep.go_no_go_score }}</span>/100</h2>
-        </div>
 
-        {% if rep.score_breakdown %}
-        <div class="section">
-            <h2>Score Breakdown</h2>
-            {% for dimension, score in rep.score_breakdown.items() %}
-            <div class="score-box">
-                <div class="score-header">
-                    <span>{{ dimension|replace('_', ' ')|title }}</span>
-                    <span class="score-val">{{ score.score }}/10</span>
-                </div>
-                <div class="score-reasoning">
-                    {{ score.reasoning }}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
+        {% if rep.executive_summary %}
         <div class="section">
             <h2>Executive Summary</h2>
             {% if rep.executive_summary.problem_summary %}
@@ -354,9 +292,11 @@
             </div>
             {% endif %}
         </div>
+        {% endif %}
 
         {% if rep.modules %}
         {% for mod_k, mod_v in rep.modules.items() %}
+        {% if mod_v %}
         <div class="section page-break">
             <h2>{{ mod_k|replace('_', ' ')|title }}</h2>
 
@@ -502,6 +442,7 @@
 
 
             <!-- Generic Fallback for other keys -->
+            {% if mod_v is mapping %}
             {% for k, v in mod_v.items() %}
             {% if k not in ['total_addressable_market', 'serviceable_addressable_market',
             'serviceable_obtainable_market', 'growth_trends', 'customer_demographics', 'market_entry_barriers'] %}
@@ -509,6 +450,7 @@
             {% if v is mapping %}{{ v }}{% else %}{{ v }}{% endif %}
             {% endif %}
             {% endfor %}
+            {% endif %}
 
             <!-- FINANCIAL FEASIBILITY TABLES -->
             {% elif mod_k == 'financials' or mod_k == 'financial_feasibility' %}
@@ -2189,9 +2131,9 @@
             {% endif %}
 
         </div>
+        {% endif %}
         {% endfor %}
         {% endif %}
-
         {% endif %}
     </div>
 </body>

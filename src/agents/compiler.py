@@ -783,17 +783,18 @@ async def compile_standard_report(state: ValidationState) -> dict:
     }
 
 
+from src.utils.supabase import update_session_status
+
+
 async def admin_approval_node(state: ValidationState) -> dict:
     """
     Admin approval placeholder node.
-
-    Sets workflow phase to waiting for admin review.
-
-    Args:
-        state: Current validation state
-
-    Returns:
-        Updated state with workflow_phase set to waiting_for_admin
+    Sets workflow phase and updates database status.
     """
+    thread_id = state.get("thread_id")
+    if thread_id:
+        logger.info(f"Setting thread {thread_id} to waiting_for_admin_approval")
+        await update_session_status(thread_id, "waiting_for_admin_approval")
+    
     logger.info("Report ready for admin approval")
     return {"workflow_phase": "waiting_for_admin"}

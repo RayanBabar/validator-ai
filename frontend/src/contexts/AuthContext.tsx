@@ -5,6 +5,7 @@ import { supabase, linkSessionToUser } from '@/lib/supabase';
 interface AuthContextType {
     user: User | null;
     session: Session | null;
+    isAdmin: boolean;
     loading: boolean;
     signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
     signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
@@ -18,13 +19,28 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        async function getProfile(userId: string) {
+            const { data } = await supabase
+                .from('profiles')
+                .select('is_admin')
+                .eq('id', userId)
+                .single();
+            setIsAdmin(data?.is_admin ?? false);
+        }
+
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             setUser(session?.user ?? null);
+            if (session?.user) {
+                getProfile(session.user.id);
+            } else {
+                setIsAdmin(false);
+            }
             setLoading(false);
         });
 
@@ -32,6 +48,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
             setUser(session?.user ?? null);
+            if (session?.user) {
+                getProfile(session.user.id);
+            } else {
+                setIsAdmin(false);
+            }
             setLoading(false);
         });
 
@@ -60,9 +81,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Link any anonymous thread_id stored in localStorage to the user
     const linkCurrentSession = async () => {
         if (!user) return;
-        const threadId = localStorage.getItem('validateai_thread_id');
-        if (threadId) {
-            await linkSessionToUser(threadId, user.id);
+        const threadData = localStorage.getItem('validateai_thread');
+        if (threadData) {
+            try {
+                const { thread_id } = JSON.parse(threadData);
+                if (thread_id) {
+                    await linkSessionToUser(thread_id, user.id);
+                }
+            } catch (e) {
+                console.error('Error parsing thread data for linking:', e);
+            }
         }
     };
 
@@ -70,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         <AuthContext.Provider value={{
             user,
             session,
+            isAdmin,
             loading,
             signUp,
             signIn,

@@ -17,10 +17,10 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-sm text-muted-foreground max-w-xs">
-              AI-powered startup validation. Get investor-grade insights before you invest a single dollar.
+              AI-powered startup validation. Get academic-grade insights before you invest months of effort.
             </p>
             <p className="text-sm text-muted-foreground mt-4">
-              Built with ❤️ for founders
+              Built with ❤️ for academic research
             </p>
           </div>
 
@@ -28,7 +28,7 @@ export function Footer() {
             <h4 className="text-sm font-semibold mb-4">Product</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a></li>
-              <li><a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a></li>
+              <li><a href="#pricing" className="hover:text-foreground transition-colors">Research Tiers</a></li>
               <li><Link to="/submit" className="hover:text-foreground transition-colors">Get Started</Link></li>
             </ul>
           </div>

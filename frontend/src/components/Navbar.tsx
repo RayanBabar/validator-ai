@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, User, LogOut, ChevronDown } from 'lucide-react';
+import { Sparkles, User, LogOut, ChevronDown, LayoutDashboard, Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthModal } from '@/components/AuthModal';
 
 export function Navbar() {
   const location = useLocation();
   const isLanding = location.pathname === '/';
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, isAdmin } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -37,7 +37,7 @@ export function Navbar() {
                   How It Works
                 </a>
                 <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Pricing
+                  Research Tiers
                 </a>
                 <a href="#testimonials" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Testimonials
@@ -74,6 +74,27 @@ export function Navbar() {
                       <p className="text-xs text-muted-foreground">Signed in as</p>
                       <p className="text-sm font-medium truncate">{user.email}</p>
                     </div>
+                    
+                    <Link
+                      to="/dashboard"
+                      onClick={() => setShowDropdown(false)}
+                      className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors flex items-center gap-2"
+                    >
+                      <LayoutDashboard className="w-3 h-3" />
+                      Dashboard
+                    </Link>
+
+                    {isAdmin && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setShowDropdown(false)}
+                        className="w-full px-3 py-2 text-left text-sm text-primary hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-2"
+                      >
+                        <Shield className="w-3 h-3" />
+                        Admin Oversight
+                      </Link>
+                    )}
+
                     <button
                       onClick={() => {
                         signOut();
@@ -100,7 +121,7 @@ export function Navbar() {
               to="/submit"
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all glow-pulse"
             >
-              Get Started Free
+              Start Research
             </Link>
           </div>
         </div>

@@ -12,7 +12,7 @@ from src.agents.base import LLMService
 from src.models.inputs import ValidationState
 from src.utils.scoring import calculate_go_no_go_score
 from src.config.prompts import COMPILER_SCORING_PROMPT, EXECUTIVE_SUMMARY_PROMPT
-from src.config.constants import RESEARCH_CONTENT_LIMIT, MODULE_DATA_KEYS
+from src.config.constants import MODULE_DATA_KEYS
 from src.agents.quality_checker import (
     verify_cross_module_consistency,
     attempt_fix_for_inconsistency,
@@ -24,13 +24,10 @@ from src.models.outputs import InvestorPitchDeck, SlideContent
 logger = logging.getLogger(__name__)
 
 
-
-
-
 async def _compile_module_summaries(state: ValidationState) -> str:
     """
     Compile module summaries from state data.
-    
+
     PERFORMANCE: Uses asyncio.gather for parallel summarization.
 
     Args:
@@ -40,7 +37,7 @@ async def _compile_module_summaries(state: ValidationState) -> str:
         Formatted string of all module summaries
     """
     import asyncio
-    
+
     # Configuration for summarization
     from src.config.prompts import EXEC_SUMMARY_MODULE_PROMPT
     from src.agents.base import LLMService
@@ -51,23 +48,28 @@ async def _compile_module_summaries(state: ValidationState) -> str:
         """Summarize a single module (for parallel execution)."""
         if custom_modules and module_key not in custom_modules:
             return None  # Skip unselected modules
-            
+
         data = state.get(data_key)
         if data is None:
             return None
-            
+
         module_name = data_key.replace("_data", "").upper()
-        
+
         try:
             data_str = str(data)
             # User Requirement: Currency is ALWAYS Euro (EUR)
             from src.config.constants import DEFAULT_CURRENCY
+
             currency = DEFAULT_CURRENCY
             summary = await LLMService.invoke(
                 EXEC_SUMMARY_MODULE_PROMPT,
-                {"module_name": module_name, "module_data": data_str, "currency": currency},
+                {
+                    "module_name": module_name,
+                    "module_data": data_str,
+                    "currency": currency,
+                },
                 use_complex=False,
-                parse_json=False
+                parse_json=False,
             )
             return f"### {module_name}:\n{summary}"
         except Exception as e:
@@ -75,14 +77,14 @@ async def _compile_module_summaries(state: ValidationState) -> str:
             if len(data_str) > 2000:
                 data_str = data_str[:2000] + "... (truncated)"
             return f"### {module_name} (Fallback):\n{data_str}"
-    
+
     # Execute all summarizations in parallel
     tasks = [
         summarize_module(module_key, data_key)
         for module_key, data_key in MODULE_DATA_KEYS.items()
     ]
     results = await asyncio.gather(*tasks)
-    
+
     # Filter out None results and join
     summaries = [r for r in results if r is not None]
     return "\n".join(summaries)
@@ -93,13 +95,14 @@ async def _generate_pitch_deck(report_data: object) -> InvestorPitchDeck:
     Generate a 12-slide Investor Pitch Deck based on the full report data.
     """
     from src.config.prompts import PITCH_DECK_PROMPT
-    
+
     # Serialize the report to JSON for the prompt
     # If report_data is a Pydantic model, use model_dump_json()
     if hasattr(report_data, "model_dump_json"):
         report_json = report_data.model_dump_json()
     else:
         import json
+
         report_json = json.dumps(report_data, default=str)
 
     try:
@@ -108,8 +111,8 @@ async def _generate_pitch_deck(report_data: object) -> InvestorPitchDeck:
             InvestorPitchDeck,
             PITCH_DECK_PROMPT,
             {"report_json": report_json},
-            use_complex=False,
-            provider="openai"
+            use_complex=True,
+            provider="claude",
         )
         return deck
     except Exception as e:
@@ -119,14 +122,15 @@ async def _generate_pitch_deck(report_data: object) -> InvestorPitchDeck:
         return InvestorPitchDeck(
             slides=[
                 SlideContent(
-                    slide_number=i+1, 
-                    title="Error Generating Slide", 
-                    content_bullets=["Generation failed."], 
-                    visual_suggestion="None", 
-                    speaker_notes="Error."
-                ) for i in range(12)
+                    slide_number=i + 1,
+                    title="Error Generating Slide",
+                    content_bullets=["Generation failed."],
+                    visual_suggestion="None",
+                    speaker_notes="Error.",
+                )
+                for i in range(12)
             ],
-            strategic_narrative="Error generation pitch deck."
+            strategic_narrative="Error generation pitch deck.",
         )
 
 
@@ -157,32 +161,36 @@ def _build_final_report(
         "score_breakdown": scores,
         "executive_summary": executive_summary,
         "executive_summary": executive_summary,
-        "modules": _filter_modules_for_tier(state, {
-            "business_model_canvas": state.get("bmc_data"),
-            "market_analysis": state.get("market_data"),
-            "competitive_intelligence": state.get("competitor_data"),
-            "financials": state.get("financial_data"),
-            "technical_requirements": state.get("tech_data"),
-            "regulatory": state.get("reg_data"),
-            "gtm_strategy": state.get("gtm_data"),
-            "risks": state.get("risk_data"),
-            "roadmap": state.get("roadmap_data"),
-            "funding": state.get("funding_data"),
-        }),
+        "modules": _filter_modules_for_tier(
+            state,
+            {
+                "business_model_canvas": state.get("bmc_data"),
+                "market_analysis": state.get("market_data"),
+                "competitive_intelligence": state.get("competitor_data"),
+                "financials": state.get("financial_data"),
+                "technical_requirements": state.get("tech_data"),
+                "regulatory": state.get("reg_data"),
+                "gtm_strategy": state.get("gtm_data"),
+                "risks": state.get("risk_data"),
+                "roadmap": state.get("roadmap_data"),
+                "funding": state.get("funding_data"),
+            },
+        ),
     }
+
 
 def _filter_modules_for_tier(state: ValidationState, all_modules: dict) -> dict:
     """Filter modules based on tier and requested custom modules."""
     tier = state["inputs"].tier
-    
+
     custom_modules = state.get("custom_modules")
     if not custom_modules:
         return all_modules
-    
+
     # helper map: internal module key -> node name
     # We need to control what shows up based on "custom_modules" list which contains node names like "mod_bmc"
     # But here we have report keys like "business_model_canvas"
-    
+
     # Map report keys to node names
     report_key_to_node = {
         "business_model_canvas": "mod_bmc",
@@ -194,12 +202,12 @@ def _filter_modules_for_tier(state: ValidationState, all_modules: dict) -> dict:
         "gtm_strategy": "mod_gtm",
         "risks": "mod_risk",
         "roadmap": "mod_roadmap",
-        "funding": "mod_funding"
+        "funding": "mod_funding",
     }
-    
+
     custom_modules = state.get("custom_modules") or []
     filtered = {}
-    
+
     for report_key, data in all_modules.items():
         node_name = report_key_to_node.get(report_key)
         if node_name and node_name in custom_modules:
@@ -207,7 +215,7 @@ def _filter_modules_for_tier(state: ValidationState, all_modules: dict) -> dict:
         else:
             # Explicitly exclude if not requested
             filtered[report_key] = None
-            
+
     return filtered
 
 
@@ -231,120 +239,337 @@ async def compile_standard_report(state: ValidationState) -> dict:
 
     desc = state["inputs"].detailed_description
 
-    # === QUALITY VERIFICATION & AUTO-FIX ===
-    logger.info("Conducting quality verification and auto-fix loop")
+    # === SMART CASCADE CONSISTENCY FIXING ===
+    logger.info("Starting Smart Cascade consistency fixing")
 
-    # SKIP FOR CUSTOM TIER to save time/cost
     if state["inputs"].tier == "custom":
-        logger.info("Custom tier detected: Skipping cross-module consistency checks for performance.")
+        logger.info("Custom tier: Skipping consistency checks for performance")
     else:
-        # Map simple names to state keys for fixing e.g. "Market" -> "market_data"
-        simple_to_key = {v.replace("_data", ""): v for k, v in MODULE_DATA_KEYS.items()}
-        # Robust mappings for LLM variations
-        simple_to_key.update({
-            "Customer": "bmc_data",
-            "Financials": "financial_data",
-            "Competition": "competitor_data", 
-            "Competitors": "competitor_data",
-            "Market": "market_data",
-            "Tech": "tech_data",
-            "Risks": "risk_data"
-        })
+        from src.agents.schema_registry import (
+            classify_issue_severity,
+            IssueSeverity,
+            validate_module_data,
+        )
+        from src.agents.fix_history import FixHistory
+        from src.agents.dependency_analyzer import (
+            execute_parallel_fixes,
+            get_dependency_info,
+        )
 
-        # PERFORMANCE: Single pass - consistency checks are expensive
-        # (each attempt = 10+ parallel LLM calls + 1 check + 2 fix calls)
-        for attempt in range(1):
-            # 1. Gather modules
+        # Build module lookup
+        simple_to_key = {v.replace("_data", ""): v for k, v in MODULE_DATA_KEYS.items()}
+        simple_to_key.update(
+            {
+                "Customer": "bmc_data",
+                "Financials": "financial_data",
+                "Competition": "competitor_data",
+                "Competitors": "competitor_data",
+                "Market": "market_data",
+                "Tech": "tech_data",
+                "Risks": "risk_data",
+            }
+        )
+
+        MAX_FIX_CYCLES = 2
+        MAX_LLM_CALLS = 15  # Budget limit
+        MAX_PARALLEL_FIXES = 3
+        llm_calls_used = 0
+
+        # Initialize fix history tracker
+        fix_history = FixHistory(max_module_fixes=3)
+
+        # Summary cache: persists across cycles, invalidated per fixed module
+        summary_cache: dict = {}
+
+        for cycle in range(MAX_FIX_CYCLES):
+            logger.info(f"=== Consistency Check Cycle {cycle + 1}/{MAX_FIX_CYCLES} ===")
+
+            # Gather current modules
             modules_for_check = {
                 key.replace("_data", ""): state.get(key)
                 for key in MODULE_DATA_KEYS.values()
                 if state.get(key)
             }
-            
-            # If custom modules selected, filter the check list to ONLY selected modules
-            # This prevents checking against stale data in the state from previous runs
+
+            # Filter for custom modules
             custom_modules = state.get("custom_modules")
             if custom_modules:
-                # Helper: map friendly name (Market) to node name (mod_market)
-                # We need to filter `modules_for_check` where keys are like "market", "financial"
-                # But `custom_modules` has "mod_market"
-                # Reverse lookup or direct check if we have the mapping
-                
-                # Simplified filter: Check if the data key's corresponding node is in custom_modules
-                filtered_check = {}
+                filtered = {}
+                report_key_map = {v: k for k, v in MODULE_DATA_KEYS.items()}
+
                 for simple_name, content in modules_for_check.items():
-                    # Find the data key for this simple name
                     data_key = simple_to_key.get(simple_name)
-                    # report_key_map maps data_key -> node_name directly (e.g., "bmc_data" -> "mod_bmc")
-                    report_key_map = {v: k for k, v in MODULE_DATA_KEYS.items()}  # data_key -> node_name
-                    
                     if data_key:
-                        node_name = report_key_map.get(data_key)  # e.g., "bmc_data" -> "mod_bmc"
-                        
+                        node_name = report_key_map.get(data_key)
                         if node_name and node_name in custom_modules:
-                            filtered_check[simple_name] = content
-                
-                modules_for_check = filtered_check
+                            filtered[simple_name] = content
 
-            # SKIP if fewer than 2 modules (cannot have inconsistency with 1 module)
+                modules_for_check = filtered
+
             if len(modules_for_check) < 2:
-                logger.info(f"Skipping consistency check: too few modules selected ({len(modules_for_check)})")
+                logger.info("Too few modules for consistency check")
                 break
-            # Add derived modules
+
+            # Add derived data
             if state.get("bmc_data"):
-                modules_for_check["Customer"] = state["bmc_data"].get("customer_segments")
-
-            # 2. Verify
-            try:
-                consistency_check = await verify_cross_module_consistency(
-                    description=desc, modules=modules_for_check
+                modules_for_check["Customer"] = state["bmc_data"].get(
+                    "customer_segments"
                 )
 
-                if consistency_check.get("pass", False):
-                    logger.info(f"Consistency check passed on attempt {attempt + 1}!")
-                    break
+            # Run consistency check (with cached summaries)
+            consistency_check = await verify_cross_module_consistency(
+                description=desc,
+                modules=modules_for_check,
+                summary_cache=summary_cache,
+            )
+            # Update cache from result
+            summary_cache = consistency_check.get("summary_cache", summary_cache)
 
-                # 3. Fix
-                inconsistencies = consistency_check.get("inconsistencies", [])
-                if not inconsistencies:
-                    break
+            if consistency_check.get("pass", True):
+                logger.info("✓ All modules consistent!")
+                break
 
-                logger.info(
-                    f"Attempt {attempt + 1}: Found {len(inconsistencies)} inconsistencies. Attempting fixes..."
+            # Get and classify issues
+            all_issues = consistency_check.get("inconsistencies", [])
+            if not all_issues:
+                logger.info("No specific inconsistencies found")
+                break
+
+            # Classify by severity
+            classified_issues = []
+            for issue in all_issues:
+                severity = classify_issue_severity(issue.get("issue", ""))
+                classified_issues.append(
+                    {
+                        **issue,
+                        "severity": severity,
+                        "severity_priority": {
+                            IssueSeverity.CRITICAL: 0,
+                            IssueSeverity.MAJOR: 1,
+                            IssueSeverity.MINOR: 2,
+                        }[severity],
+                    }
                 )
 
-                # Take the first 2 inconsistencies to fix (don't try all at once)
-                fixes_applied = 0
-                for issue in inconsistencies[:2]:
-                    fix_result = await attempt_fix_for_inconsistency(
-                        description=desc, inconsistency=issue, all_modules=modules_for_check
+            # Sort by severity
+            classified_issues.sort(key=lambda x: x["severity_priority"])
+
+            critical_count = sum(
+                1 for i in classified_issues if i["severity"] == IssueSeverity.CRITICAL
+            )
+            major_count = sum(
+                1 for i in classified_issues if i["severity"] == IssueSeverity.MAJOR
+            )
+            minor_count = sum(
+                1 for i in classified_issues if i["severity"] == IssueSeverity.MINOR
+            )
+
+            logger.info(
+                f"Found {len(classified_issues)} issues: {critical_count} critical, {major_count} major, {minor_count} minor"
+            )
+
+            # Group by severity for batch processing
+            critical_issues = [
+                i for i in classified_issues if i["severity"] == IssueSeverity.CRITICAL
+            ]
+            major_issues = [
+                i for i in classified_issues if i["severity"] == IssueSeverity.MAJOR
+            ]
+            minor_issues = [
+                i for i in classified_issues if i["severity"] == IssueSeverity.MINOR
+            ]
+
+            fixes_applied = 0
+            fixes_failed = 0
+
+            # Process critical (all) - with history tracking and parallel execution
+            if critical_issues:
+                # Check which issues should be skipped (history-based)
+                issues_to_fix = []
+                skipped_count = 0
+
+                for issue in critical_issues:
+                    target = issue.get("modules", [""])[-1]
+                    should_skip, skip_reason = fix_history.should_skip_issue(
+                        issue, target
                     )
 
-                    if fix_result:
-                        target_mod = fix_result["target_module"]
-                        fixed_content = fix_result["fixed_content"]
+                    if should_skip:
+                        logger.info(f"Skipping issue: {skip_reason}")
+                        skipped_count += 1
+                    else:
+                        issues_to_fix.append(issue)
 
-                        # Update state
-                        state_key = simple_to_key.get(target_mod)
-                        if state_key:
-                            if target_mod == "Customer" and state_key == "bmc_data":
-                                # Specific patch for BMC customer segments
-                                if state.get("bmc_data"):
-                                    state["bmc_data"]["customer_segments"] = fixed_content
-                                    fixes_applied += 1
-                            elif state_key in state:
-                                # Full module aupdate
-                                state[state_key] = fixed_content
+                if skipped_count > 0:
+                    logger.info(
+                        f"Skipped {skipped_count} issues due to history tracking"
+                    )
+
+                # Group into parallel batches
+                dep_info = get_dependency_info(issues_to_fix)
+                logger.info(
+                    f"Dependency analysis: {dep_info['batches']} batches, parallelism: {dep_info.get('parallelism_factor', 1):.1f}x"
+                )
+
+                # Execute critical fixes in parallel batches
+                if issues_to_fix:
+                    # Use parallel execution for critical issues
+                    fix_results = await execute_parallel_fixes(
+                        issues=issues_to_fix,
+                        attempt_fix_func=attempt_fix_for_inconsistency,
+                        state_modules=modules_for_check,
+                        description=desc,
+                        max_parallel=MAX_PARALLEL_FIXES,
+                    )
+
+                    # Process results
+                    for result in fix_results:
+                        if result.get("success"):
+                            fix_result = result.get("result")
+                            is_valid, error = validate_module_data(
+                                fix_result["target_state_key"],
+                                fix_result["fixed_content"],
+                            )
+
+                            if is_valid:
+                                state[fix_result["target_state_key"]] = fix_result[
+                                    "fixed_content"
+                                ]
                                 fixes_applied += 1
-                                logger.info(f"Applied fix to {state_key}")
+                                llm_calls_used += 2
 
-                if fixes_applied == 0:
-                    logger.info("No fixes could be applied, stopping loop.")
+                                # Invalidate summary cache for the fixed module
+                                fixed_simple = fix_result["target_state_key"].replace("_data", "")
+                                summary_cache.pop(fixed_simple, None)
+
+                                # Record in history
+                                fix_history.record_fix(
+                                    issue=result.get("issue", {}),
+                                    target_module=fix_result["target_module"],
+                                    target_state_key=fix_result["target_state_key"],
+                                    field_path=fix_result.get("field_path", ""),
+                                    fix_type=fix_result.get("fix_type", "unknown"),
+                                    cycle=cycle,
+                                )
+
+                                logger.info(
+                                    f"Applied {fix_result['fix_type']} fix to {fix_result['target_state_key']}"
+                                )
+                            else:
+                                fixes_failed += 1
+                                logger.error(f"Fix validation failed: {error}")
+                        else:
+                            fixes_failed += 1
+                            if result.get("error"):
+                                logger.error(f"Fix error: {result.get('error')}")
+
+            # If critical fixes resolved everything, skip major/minor
+            if fixes_applied > 0 and cycle < MAX_FIX_CYCLES - 1:
+                # Quick re-check before continuing (with cached summaries)
+                quick_check = await verify_cross_module_consistency(
+                    desc,
+                    modules_for_check,
+                    summary_cache=summary_cache,
+                )
+                summary_cache = quick_check.get("summary_cache", summary_cache)
+                if quick_check.get("pass", False):
+                    logger.info("Critical fixes resolved all issues!")
                     break
 
-            except Exception as e:
-                logger.warning(f"Verification loop check failed: {e}")
+            # Process major (up to 3) - with history tracking
+            for issue in major_issues[:3]:
+                if llm_calls_used >= MAX_LLM_CALLS:
+                    break
+
+                # Check history
+                target = issue.get("modules", [""])[-1]
+                should_skip, skip_reason = fix_history.should_skip_issue(issue, target)
+                if should_skip:
+                    logger.info(f"Skipping major issue: {skip_reason}")
+                    continue
+
+                fix_result = await attempt_fix_for_inconsistency(
+                    desc, issue, modules_for_check
+                )
+                llm_calls_used += 2
+
+                if fix_result and fix_result.get("fix_type") != "failed":
+                    is_valid, error = validate_module_data(
+                        fix_result["target_state_key"], fix_result["fixed_content"]
+                    )
+
+                    if is_valid:
+                        state[fix_result["target_state_key"]] = fix_result[
+                            "fixed_content"
+                        ]
+                        fixes_applied += 1
+
+                        # Invalidate summary cache for the fixed module
+                        fixed_simple = fix_result["target_state_key"].replace("_data", "")
+                        summary_cache.pop(fixed_simple, None)
+
+                        # Record in history
+                        fix_history.record_fix(
+                            issue=issue,
+                            target_module=fix_result.get("target_module", ""),
+                            target_state_key=fix_result["target_state_key"],
+                            field_path=fix_result.get("field_path", ""),
+                            fix_type=fix_result.get("fix_type", "unknown"),
+                            cycle=cycle,
+                        )
+
+            # Only process minor if no critical/major and we have budget
+            if (
+                not critical_issues
+                and not major_issues
+                and llm_calls_used < MAX_LLM_CALLS - 5
+            ):
+                for issue in minor_issues[:2]:  # Max 2 minor
+                    # Check history
+                    target = issue.get("modules", [""])[-1]
+                    should_skip, skip_reason = fix_history.should_skip_issue(
+                        issue, target
+                    )
+                    if should_skip:
+                        continue
+
+                    fix_result = await attempt_fix_for_inconsistency(
+                        desc, issue, modules_for_check
+                    )
+                    llm_calls_used += 2
+
+                    if fix_result and fix_result.get("fix_type") != "failed":
+                        is_valid, error = validate_module_data(
+                            fix_result["target_state_key"], fix_result["fixed_content"]
+                        )
+
+                        if is_valid:
+                            state[fix_result["target_state_key"]] = fix_result[
+                                "fixed_content"
+                            ]
+                            fixes_applied += 1
+
+                            # Invalidate summary cache for the fixed module
+                            fixed_simple = fix_result["target_state_key"].replace("_data", "")
+                            summary_cache.pop(fixed_simple, None)
+
+            logger.info(
+                f"Cycle {cycle + 1} complete: {fixes_applied} fixes applied, {fixes_failed} failed, {llm_calls_used} LLM calls used"
+            )
+
+            # Early exit if all critical issues resolved
+            if not critical_issues and not major_issues:
+                logger.info("No more critical or major issues, stopping cascade")
                 break
+
+        logger.info(f"Smart Cascade complete: {llm_calls_used} total LLM calls")
+
+        # Log fix history summary
+        history_summary = fix_history.get_fix_summary()
+        logger.info(
+            f"Fix history: {history_summary['total_fixes']} fixes applied, "
+            f"modules: {history_summary['modules_affected']}"
+        )
 
     # Gather module summaries (re-compile after fixes)
     module_summaries = await _compile_module_summaries(state)
@@ -356,9 +581,11 @@ async def compile_standard_report(state: ValidationState) -> dict:
     stored_research = state.get("stored_scoring_research")
 
     scoring_research = {}
-    
+
     if stored_score is not None and stored_breakdown and stored_research:
-        logger.info("Using persisted Go/No-Go score and research (skipping fresh analysis)")
+        logger.info(
+            "Using persisted Go/No-Go score and research (skipping fresh analysis)"
+        )
         scoring_research = stored_research
         final_score = stored_score
         adjusted_scores = stored_breakdown
@@ -366,17 +593,31 @@ async def compile_standard_report(state: ValidationState) -> dict:
         # COST OPTIMIZATION: Reuse comprehensive_research if available (eliminates 20+ Tavily calls)
         comprehensive = state.get("comprehensive_research")
         if comprehensive:
-            logger.info(f"Reusing comprehensive research for scoring ({len(comprehensive)} chars)")
+            logger.info(
+                f"Reusing comprehensive research for scoring ({len(comprehensive)} chars)"
+            )
             # Extract scoring-relevant context from comprehensive research
             scoring_research = {
-                "market_demand": comprehensive[:2000] if len(comprehensive) > 2000 else comprehensive,
-                "competition": comprehensive[2000:4000] if len(comprehensive) > 4000 else comprehensive,
-                "timing": comprehensive[4000:6000] if len(comprehensive) > 6000 else comprehensive,
-                "regulatory": comprehensive[6000:8000] if len(comprehensive) > 8000 else comprehensive,
-                "scalability": comprehensive[8000:10000] if len(comprehensive) > 10000 else comprehensive,
+                "market_demand": comprehensive[:2000]
+                if len(comprehensive) > 2000
+                else comprehensive,
+                "competition": comprehensive[2000:4000]
+                if len(comprehensive) > 4000
+                else comprehensive,
+                "timing": comprehensive[4000:6000]
+                if len(comprehensive) > 6000
+                else comprehensive,
+                "regulatory": comprehensive[6000:8000]
+                if len(comprehensive) > 8000
+                else comprehensive,
+                "scalability": comprehensive[8000:10000]
+                if len(comprehensive) > 10000
+                else comprehensive,
             }
         else:
-            logger.info("Comprehensive research not found, conducting internet research for Go/No-Go scoring")
+            logger.info(
+                "Comprehensive research not found, conducting internet research for Go/No-Go scoring"
+            )
             scoring_research = await conduct_scoring_research(state)
 
         # Gather interview Q&A data from state for more informed analysis
@@ -411,7 +652,9 @@ async def compile_standard_report(state: ValidationState) -> dict:
         if strat_dir_obj:
             strat_txt = f"Strategic Decisions:\n- Pricing: {strat_dir_obj.pricing_strategy}\n- Target: {strat_dir_obj.target_customer_segment}\n- Constraints: {', '.join(strat_dir_obj.key_strategic_constraints)}"
         else:
-            strat_txt = "No specific strategic directive provided. Rely on research context."
+            strat_txt = (
+                "No specific strategic directive provided. Rely on research context."
+            )
 
         invoke_args = {
             "title": desc,  # LLM will extract/generate title from description
@@ -422,25 +665,25 @@ async def compile_standard_report(state: ValidationState) -> dict:
             "regulatory_context": state.get(
                 "extracted_regulatory_context", "general compliance"
             ),
-            "strategic_directive": strat_txt
+            "strategic_directive": strat_txt,
         }
 
         # Use LLMService for scoring with automatic fallback
         scores = await LLMService.invoke(
             COMPILER_SCORING_PROMPT,
             invoke_args,
-            use_complex=False,
+            use_complex=True,
             parse_json=True,
-            provider="openai",  # Use fast model only
+            provider="claude-opus",  # Opus 4.5 for critical scoring reasoning
         )
 
         final_score, adjusted_scores = calculate_go_no_go_score(scores)
         logger.info(f"Go/No-Go score calculated: {final_score}")
 
     # Ensure research_context is available for Executive Summary even if we skipped scoring
-    if not 'research_context' in locals():
-         # Re-construct context for Executive Summary if we skipped scoring block
-         # (We need the QA pairs again)
+    if "research_context" not in locals():
+        # Re-construct context for Executive Summary if we skipped scoring block
+        # (We need the QA pairs again)
         questions_asked = state.get("questions_asked", [])
         user_answers = state.get("user_answers", [])
         qa_pairs = (
@@ -473,7 +716,7 @@ async def compile_standard_report(state: ValidationState) -> dict:
         "module_summaries": module_summaries,
         "research_context": research_context,
         "geography": state.get("extracted_geography", "Global"),
-        "currency": "EUR", # DEFAULT_CURRENCY import might be needed or just string
+        "currency": "EUR",  # DEFAULT_CURRENCY import might be needed or just string
     }
 
     try:
@@ -481,9 +724,9 @@ async def compile_standard_report(state: ValidationState) -> dict:
         executive_summary = await LLMService.invoke(
             EXECUTIVE_SUMMARY_PROMPT,
             exec_summary_args,
-            use_complex=False,
+            use_complex=True,
             parse_json=True,
-            provider="openai",  # Use fast model only
+            provider="claude-opus",  # Opus 4.5 for high-quality executive summary
         )
     except Exception as exec_error:
         logger.warning(f"Executive summary generation failed: {exec_error}")
@@ -491,7 +734,7 @@ async def compile_standard_report(state: ValidationState) -> dict:
         executive_summary = {
             "business_opportunity": {
                 "problem_summary": "Summary generation failed.",
-                "solution_overview": f"Analysis for startup idea",
+                "solution_overview": "Analysis for startup idea",
                 "target_market": "See detailed market analysis.",
                 "value_proposition": "See detailed modules.",
             },
@@ -512,7 +755,7 @@ async def compile_standard_report(state: ValidationState) -> dict:
             },
         }
 
-    logger.info(f"Executive summary generated (structured object)")
+    logger.info("Executive summary generated (structured object)")
 
     # Use title from state (generated in free tier)
     generated_title = state.get("generated_title") or "Startup Idea"
@@ -525,7 +768,7 @@ async def compile_standard_report(state: ValidationState) -> dict:
     # 6. Generate Pitch Deck (Optional Custom Module or Premium Tier)
     # Check if 'investor_pitch_deck' is in custom_modules OR if tier is 'premium'
     custom_modules = state.get("custom_modules") or []
-    
+
     if "investor_pitch_deck" in custom_modules or state["inputs"].tier == "premium":
         pitch_deck = await _generate_pitch_deck(report)
         report["investor_pitch_deck"] = pitch_deck.model_dump()
@@ -541,7 +784,7 @@ async def compile_standard_report(state: ValidationState) -> dict:
         "final_report": report,
         "stored_go_no_go_score": final_score,
         "stored_score_breakdown": adjusted_scores,
-        "stored_scoring_research": scoring_research
+        "stored_scoring_research": scoring_research,
     }
 
 

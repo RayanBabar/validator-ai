@@ -4,8 +4,6 @@ Agents package - LLM-powered agents for startup validation workflow.
 from src.agents.base import (
     llm_fast,
     llm_complex,
-    claude_fast,
-    claude_complex,
     search_with_tavily,
     generate_structured_module,
     LLMService,
@@ -19,8 +17,6 @@ from src.agents.compiler import compile_standard_report, admin_approval_node
 __all__ = [
     "llm_fast",
     "llm_complex",
-    "claude_fast",
-    "claude_complex",
     "search_with_tavily",
     "generate_structured_module",
     "interviewer_node",

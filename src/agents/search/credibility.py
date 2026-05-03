@@ -5,7 +5,7 @@ Scores URLs based on domain reputation to filter low-quality sources.
 """
 import re
 import logging
-from typing import List, Dict, Tuple
+from typing import Tuple
 
 logger = logging.getLogger(__name__)
 

@@ -470,14 +470,34 @@
             </table>
             {% endif %}
 
-            <!-- Market Entry Barriers (Separate List) -->
+            <!-- Market Entry Barriers (Table) -->
             {% if mod_v.market_entry_barriers %}
             <h4>Market Entry Barriers</h4>
-            <ul class="tag-list">
-                {% for barrier in mod_v.market_entry_barriers %}
-                <li>{{ barrier }}</li>
-                {% endfor %}
-            </ul>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Barrier</th>
+                        <th>Severity</th>
+                        <th>Mitigation Strategy</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for barrier in mod_v.market_entry_barriers %}
+                    <tr>
+                        <td><b>{{ barrier.barrier }}</b></td>
+                        <td>
+                            <span style="padding: 2px 6px; border-radius: 4px; font-size: 0.85em; 
+                                {% if barrier.severity == 'High' %}background:#f8d7da; color:#721c24;
+                                {% elif barrier.severity == 'Medium' %}background:#fff3cd; color:#856404;
+                                {% else %}background:#d4edda; color:#155724;{% endif %}">
+                                {{ barrier.severity }}
+                            </span>
+                        </td>
+                        <td>{{ barrier.mitigation_strategy }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% endif %}
 
 
@@ -678,15 +698,15 @@
             <table class="data-table">
                 <tr>
                     <th>CAC</th>
-                    <td>{{ mod_v.unit_economics.cac }}</td>
+                    <td>{{ mod_v.unit_economics.CAC }}</td>
                 </tr>
                 <tr>
                     <th>LTV</th>
-                    <td>{{ mod_v.unit_economics.ltv }}</td>
+                    <td>{{ mod_v.unit_economics.LTV }}</td>
                 </tr>
                 <tr>
                     <th>LTV:CAC Ratio</th>
-                    <td>{{ mod_v.unit_economics.ltv_cac_ratio }}</td>
+                    <td>{{ mod_v.unit_economics.LTV_CAC_ratio }}</td>
                 </tr>
                 <tr>
                     <th>Contribution Margin</th>
@@ -785,19 +805,33 @@
                     <th>Runway</th>
                     <td>{{ mod_v.burn_rate_runway.runway_months }}</td>
                 </tr>
-                <tr>
-                    <th>Key Expenses</th>
-                    <td>
-                        <ul class="tag-list">{% for expense, amount in mod_v.burn_rate_runway.key_expenses.items() %}
-                            <li><strong>{{ expense }}:</strong> {{ amount }}</li>{% endfor %}
-                        </ul>
-                    </td>
-                </tr>
             </table>
+
+            {% if mod_v.burn_rate_runway.key_expenses %}
+            <h5>Key Monthly Expenses</h5>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Amount</th>
+                        <th>% of Burn</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for expense in mod_v.burn_rate_runway.key_expenses %}
+                    <tr>
+                        <td>{{ expense.category }}</td>
+                        <td>{{ expense.amount }}</td>
+                        <td>{{ expense.percentage }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
             {% endif %}
 
             <!-- Key Financial KPIs -->
-            {% if mod_v.key_financial_kpis %}
+            {% if mod_v.key_financial_KPIs %}
             <h4>Key Financial KPIs</h4>
             <table class="data-table">
                 <thead>
@@ -809,9 +843,9 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for kpi in mod_v.key_financial_kpis %}
+                    {% for kpi in mod_v.key_financial_KPIs %}
                     <tr>
-                        <td><strong>{{ kpi.kpi }}</strong></td>
+                        <td><strong>{{ kpi.KPI }}</strong></td>
                         <td>{{ kpi.target }}</td>
                         <td>{{ kpi.year_1_target }}</td>
                         <td>{{ kpi.why_critical }}</td>
@@ -824,7 +858,7 @@
             <!-- Generic fallback for other fields -->
             {% for k, v in mod_v.items() %}
             {% if k not in ['three_year_projections', 'unit_economics', 'initial_investment', 'burn_rate_runway',
-            'revenue_model', 'break_even_analysis', 'key_financial_kpis'] %}
+            'revenue_model', 'break_even_analysis', 'key_financial_KPIs'] %}
             <h4>{{ k|replace('_', ' ')|title }}</h4>
             {% if v is mapping %}{{ v }}{% else %}{{ v }}{% endif %}
             {% endif %}
@@ -972,7 +1006,7 @@
                     {% for comp in mod_v.direct_competitors %}
                     <tr>
                         <td><b>{{ comp.name }}</b></td>
-                        <td>{{ comp.hq_location }}</td>
+                        <td>{{ comp.HQ_location }}</td>
                         <td>{{ comp.market_position }}</td>
                         <td
                             class="{% if comp.threat_score|lower == 'high' %}risk-high{% elif comp.threat_score|lower == 'medium' %}risk-medium{% else %}risk-low{% endif %}">
@@ -1146,8 +1180,8 @@
                     {% for chan in mod_v.acquisition_channels %}
                     <tr>
                         <td><b>{{ chan.channel }}</b></td>
-                        <td>{{ chan.roi_rank }}</td>
-                        <td>{{ chan.estimated_cac }}</td>
+                        <td>{{ chan.ROI_rank }}</td>
+                        <td>{{ chan.estimated_CAC }}</td>
                         <td>{{ chan.strategy }}</td>
                     </tr>
                     {% endfor %}
@@ -1197,17 +1231,17 @@
             {% endif %}
 
             <!-- Content SEO Strategy -->
-            {% if mod_v.content_seo_strategy %}
+            {% if mod_v.content_SEO_strategy %}
             <h4>Content & SEO Strategy</h4>
             <p><b>Target Keywords:</b>
-            <ul class="tag-list">{% for kw in mod_v.content_seo_strategy.target_keywords %}<li>{{ kw }}</li>{% endfor %}
+            <ul class="tag-list">{% for kw in mod_v.content_SEO_strategy.target_keywords %}<li>{{ kw }}</li>{% endfor %}
             </ul>
             </p>
             <p><b>Content Types:</b>
-            <ul class="tag-list">{% for type in mod_v.content_seo_strategy.content_types %}<li>{{ type }}</li>{% endfor
+            <ul class="tag-list">{% for type in mod_v.content_SEO_strategy.content_types %}<li>{{ type }}</li>{% endfor
                 %}</ul>
             </p>
-            <p><b>Publishing Frequency:</b> {{ mod_v.content_seo_strategy.publishing_frequency }}</p>
+            <p><b>Publishing Frequency:</b> {{ mod_v.content_SEO_strategy.publishing_frequency }}</p>
             {% endif %}
 
             <!-- Pricing & Positioning -->
@@ -1234,19 +1268,62 @@
 
             <!-- Partnerships -->
             {% if mod_v.partnerships %}
-            <h4>Partnerships</h4>
-            <ul class="tag-list">{% for p in mod_v.partnerships %}<li>{{ p }}</li>{% endfor %}</ul>
+            <h4>Partnerships & Distribution</h4>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Partner Type</th>
+                        <th>Potential Partners</th>
+                        <th>Value Exchange</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in mod_v.partnerships %}
+                    <tr>
+                        <td><b>{{ p.partner_type }}</b></td>
+                        <td>{{ p.potential_partners }}</td>
+                        <td>{{ p.value_exchange }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% endif %}
 
             <!-- Growth Hacking -->
             {% if mod_v.growth_hacking %}
-            <h4>Growth Hacking</h4>
-            <ul class="tag-list">{% for g in mod_v.growth_hacking %}<li>{{ g }}</li>{% endfor %}</ul>
+            <h4>Growth Hacking Tactics</h4>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tactic</th>
+                        <th>Impact</th>
+                        <th>Cost/Effort</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in mod_v.growth_hacking %}
+                    <tr>
+                        <td><b>{{ g.tactic }}</b></td>
+                        <td>
+                            <span style="padding: 2px 6px; border-radius: 4px; font-size: 0.85em;
+                                {% if g.expected_impact == 'High' %}background:#d4edda; color:#155724;
+                                {% elif g.expected_impact == 'Medium' %}background:#fff3cd; color:#856404;
+                                {% else %}background:#e2e3e5; color:#383d41;{% endif %}">
+                                {{ g.expected_impact }}
+                            </span>
+                        </td>
+                        <td>{{ g.cost_effort }}</td>
+                        <td>{{ g.description }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% endif %}
 
             <!-- Generic Fallback -->
             {% for k, v in mod_v.items() %}
-            {% if k not in ['acquisition_channels', 'launch_strategy', 'marketing_budget', 'content_seo_strategy',
+            {% if k not in ['acquisition_channels', 'launch_strategy', 'marketing_budget', 'content_SEO_strategy',
             'pricing_positioning', 'partnerships', 'growth_hacking'] %}
             <h4>{{ k|replace('_', ' ')|title }}</h4>
             {% if v is mapping %}{{ v }}{% else %}{{ v }}{% endif %}
@@ -1318,14 +1395,55 @@
 
             <!-- Kill Switches -->
             {% if mod_v.kill_switches %}
-            <h4>Kill Switches</h4>
-            <ul class="tag-list">{% for k in mod_v.kill_switches %}<li>{{ k }}</li>{% endfor %}</ul>
+            <h4>Kill Switches (Pivot Indicators)</h4>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Indicator</th>
+                        <th>Threshold</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for k in mod_v.kill_switches %}
+                    <tr>
+                        <td><b>{{ k.indicator }}</b></td>
+                        <td><span style="color: #c0392b; font-weight: bold;">{{ k.threshold }}</span></td>
+                        <td>{{ k.action }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% endif %}
 
             <!-- Dependency Risks -->
             {% if mod_v.dependency_risks %}
             <h4>Dependency Risks</h4>
-            <ul class="tag-list">{% for d in mod_v.dependency_risks %}<li>{{ d }}</li>{% endfor %}</ul>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Dependency</th>
+                        <th>Risk Level</th>
+                        <th>Contingency</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in mod_v.dependency_risks %}
+                    <tr>
+                        <td><b>{{ d.dependency }}</b></td>
+                        <td>
+                            <span style="padding: 2px 6px; border-radius: 4px; font-size: 0.85em; 
+                                {% if d.risk_level == 'High' %}background:#f8d7da; color:#721c24;
+                                {% elif d.risk_level == 'Medium' %}background:#fff3cd; color:#856404;
+                                {% else %}background:#d4edda; color:#155724;{% endif %}">
+                                {{ d.risk_level }}
+                            </span>
+                        </td>
+                        <td>{{ d.contingency }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% endif %}
 
             <!-- Market Timing Risks -->
@@ -1345,7 +1463,7 @@
 
             <!-- TECHNICAL REQUIREMENTS -->
             {% elif mod_k == 'technical_requirements' %}
-            {% if mod_v.mvp_features %}
+            {% if mod_v.MVP_features %}
             <h4>MVP Features</h4>
             <table class="data-table">
                 <thead>
@@ -1356,7 +1474,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for feat in mod_v.mvp_features %}
+                    {% for feat in mod_v.MVP_features %}
                     <tr>
                         <td>{{ feat.feature }}</td>
                         <td>{{ feat.priority }}</td>
@@ -1371,7 +1489,7 @@
             {% if mod_v.development_timeline %}
             <h4>Development Timeline</h4>
 
-            <p><b>MVP Weeks:</b> {{ mod_v.development_timeline.mvp_weeks }}</p>
+            <p><b>MVP Weeks:</b> {{ mod_v.development_timeline.MVP_weeks }}</p>
             <p><b>Beta Weeks:</b> {{ mod_v.development_timeline.beta_weeks }}</p>
             <p><b>Launch Weeks:</b> {{ mod_v.development_timeline.launch_weeks }}</p>
 
@@ -1399,20 +1517,37 @@
             <!-- Team Composition -->
             {% if mod_v.team_composition %}
             <h4>Team Composition</h4>
-            <p><b>Required Roles:</b>
-            <ul class="tag-list">{% for role in mod_v.team_composition.required_roles %}<li>{{ role }}</li>{% endfor %}
-            </ul>
-            </p>
-            <p><b>Skills Needed:</b>
-            <ul class="tag-list">{% for skill in mod_v.team_composition.skills_needed %}<li>{{ skill }}</li>{% endfor %}
-            </ul>
-            </p>
             <p><b>Team Size:</b> {{ mod_v.team_composition.team_size }}</p>
-            <p><b>Hiring Priority:</b>
-            <ul class="tag-list">{% for prio in mod_v.team_composition.hiring_priority %}<li>{{ prio }}</li>{% endfor %}
-            </ul>
-            </p>
             <p><b>Hiring Notes:</b> {{ mod_v.team_composition.hiring_notes }}</p>
+
+            <h5>Key Hires</h5>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Role</th>
+                        <th>Required Skills</th>
+                        <th>Priority</th>
+                        <th>Est. Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for hire in mod_v.team_composition.key_hires %}
+                    <tr>
+                        <td><b>{{ hire.role }}</b></td>
+                        <td>{{ hire.skills }}</td>
+                        <td>
+                            <span style="padding: 2px 6px; border-radius: 4px; font-size: 0.85em; 
+                                {% if hire.hiring_priority == 'Immediate' %}background:#f8d7da; color:#721c24;
+                                {% elif hire.hiring_priority == 'Month 3' %}background:#fff3cd; color:#856404;
+                                {% else %}background:#d4edda; color:#155724;{% endif %}">
+                                {{ hire.hiring_priority }}
+                            </span>
+                        </td>
+                        <td>{{ hire.estimated_cost }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% endif %}
 
             <!-- Infrastructure Costs -->
@@ -1421,7 +1556,7 @@
             <table class="data-table">
                 <tr>
                     <th>MVP Monthly</th>
-                    <td>{{ mod_v.infrastructure_costs.mvp_monthly }}</td>
+                    <td>{{ mod_v.infrastructure_costs.MVP_monthly }}</td>
                 </tr>
                 <tr>
                     <th>Growth Monthly</th>
@@ -1444,25 +1579,25 @@
             <!-- Scalability Plan -->
             {% if mod_v.scalability_plan %}
             <h4>Scalability Plan</h4>
+            <p><b>Current Capacity:</b> {{ mod_v.scalability_plan.current_capacity }}</p>
+
             <table class="data-table">
-                <tr>
-                    <th>Current Capacity</th>
-                    <td>{{ mod_v.scalability_plan.current_capacity }}</td>
-                </tr>
-                <tr>
-                    <th>Scaling Triggers</th>
-                    <td>
-                        <ul class="tag-list">{% for t in mod_v.scalability_plan.scaling_triggers %}<li>{{ t }}</li>{%
-                            endfor %}</ul>
-                    </td>
-                </tr>
-                <tr>
-                    <th>Architecture Changes</th>
-                    <td>
-                        <ul class="tag-list">{% for c in mod_v.scalability_plan.architecture_changes %}<li>{{ c }}</li>
-                            {% endfor %}</ul>
-                    </td>
-                </tr>
+                <thead>
+                    <tr>
+                        <th>Trigger</th>
+                        <th>Architecture Action</th>
+                        <th>Est. Effort</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for action in mod_v.scalability_plan.scaling_plan %}
+                    <tr>
+                        <td><b>{{ action.trigger }}</b></td>
+                        <td>{{ action.action }}</td>
+                        <td>{{ action.estimated_effort }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
             </table>
             {% endif %}
 
@@ -1501,7 +1636,7 @@
 
             <!-- Generic Fallback for unknown fields -->
             {% for k, v in mod_v.items() %}
-            {% if k not in ['mvp_features', 'development_timeline', 'team_composition', 'infrastructure_costs',
+            {% if k not in ['MVP_features', 'development_timeline', 'team_composition', 'infrastructure_costs',
             'scalability_plan', 'security_compliance', 'technology_stack'] %}
             <h4>{{ k|replace('_', ' ')|title }}</h4>
             {% if v is mapping %}{{ v }}{% else %}{{ v }}{% endif %}
@@ -1592,7 +1727,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for okr in mod_v.year_one_objectives.okrs %}
+                    {% for okr in mod_v.year_one_objectives.OKRs %}
                     <tr>
                         <td><b>{{ okr.objective }}</b></td>
                         <td>
@@ -1665,8 +1800,32 @@
             {% endif %}
 
             {% if mod_v.critical_path %}
-            <h4>Critical Path</h4>
-            <ul class="tag-list">{% for c in mod_v.critical_path %}<li>{{ c }}</li>{% endfor %}</ul>
+            <h4>Critical Path Analysis</h4>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Activity</th>
+                        <th>Dependency</th>
+                        <th>Impact</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in mod_v.critical_path %}
+                    <tr>
+                        <td><b>{{ c.activity }}</b></td>
+                        <td>{{ c.dependency }}</td>
+                        <td>
+                            <span style="padding: 2px 6px; border-radius: 4px; font-size: 0.85em; 
+                                {% if c.impact == 'High' %}background:#f8d7da; color:#721c24;
+                                {% elif c.impact == 'Medium' %}background:#fff3cd; color:#856404;
+                                {% else %}background:#d4edda; color:#155724;{% endif %}">
+                                {{ c.impact }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% endif %}
 
             {% if mod_v.success_metrics %}
@@ -1765,7 +1924,7 @@
                 </ul>
 
                 <p style="margin-top: 10px;"><b>VCs:</b></p>
-                <ul class="tag-list">{% for v in mod_v.investor_landscape.vcs %}<li>{{ v }}</li>{% endfor %}</ul>
+                <ul class="tag-list">{% for v in mod_v.investor_landscape.VCs %}<li>{{ v }}</li>{% endfor %}</ul>
 
                 <p style="margin-top: 10px;"><b>Angel Networks:</b></p>
                 <ul class="tag-list">{% for a in mod_v.investor_landscape.angel_networks %}<li>{{ a }}</li>{% endfor %}
@@ -1820,7 +1979,24 @@
             <!-- Fundraising Process -->
             {% if mod_v.fundraising_process %}
             <h4>Fundraising Process</h4>
-            <ul class="tag-list">{% for s in mod_v.fundraising_process %}<li>{{ s }}</li>{% endfor %}</ul>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>Duration</th>
+                        <th>Key Activities</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in mod_v.fundraising_process %}
+                    <tr>
+                        <td><b>{{ s.step_name }}</b></td>
+                        <td>{{ s.duration }}</td>
+                        <td>{{ s.key_activities }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% endif %}
 
             <!-- Generic Fallback -->
@@ -1869,29 +2045,24 @@
 
             <!-- IP Considerations -->
             {% if mod_v.intellectual_property %}
-            <h4>Intellectual Property</h4>
+            <h4>Intellectual Property Strategy</h4>
             <table class="data-table">
-                <tr>
-                    <th>Trademark Needs</th>
-                    <td>
-                        <ul class="tag-list">{% for t in mod_v.intellectual_property.trademark_needs %}<li>{{ t }}</li>
-                            {% endfor %}</ul>
-                    </td>
-                </tr>
-                <tr>
-                    <th>Patent Opportunities</th>
-                    <td>
-                        <ul class="tag-list">{% for p in mod_v.intellectual_property.patent_opportunities %}<li>{{ p }}
-                            </li>{% endfor %}</ul>
-                    </td>
-                </tr>
-                <tr>
-                    <th>Copyright Items</th>
-                    <td>
-                        <ul class="tag-list">{% for c in mod_v.intellectual_property.copyright_items %}<li>{{ c }}</li>
-                            {% endfor %}</ul>
-                    </td>
-                </tr>
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Action Required</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ip in mod_v.intellectual_property %}
+                    <tr>
+                        <td><b>{{ ip.protection_type }}</b></td>
+                        <td>{{ ip.description }}</td>
+                        <td>{{ ip.action_required }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
             </table>
             {% endif %}
 
@@ -1922,20 +2093,71 @@
             </table>
             {% endif %}
 
-            <!-- Lists -->
+            <!-- Lists replaced with Tables -->
             {% if mod_v.country_regulations %}
-            <h4>Country Regulations</h4>
-            <ul class="tag-list">{% for r in mod_v.country_regulations %}<li>{{ r }}</li>{% endfor %}</ul>
+            <h4>Country-Specific Regulations</h4>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Regulation</th>
+                        <th>Description</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reg in mod_v.country_regulations %}
+                    <tr>
+                        <td><b>{{ reg.regulation }}</b></td>
+                        <td>{{ reg.description }}</td>
+                        <td>{{ reg.action_required }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% endif %}
 
             {% if mod_v.industry_compliance %}
             <h4>Industry Compliance</h4>
-            <ul class="tag-list">{% for i in mod_v.industry_compliance %}<li>{{ i }}</li>{% endfor %}</ul>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Requirement</th>
+                        <th>Description</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reg in mod_v.industry_compliance %}
+                    <tr>
+                        <td><b>{{ reg.regulation }}</b></td>
+                        <td>{{ reg.description }}</td>
+                        <td>{{ reg.action_required }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% endif %}
 
             {% if mod_v.licensing_permits %}
             <h4>Licensing & Permits</h4>
-            <ul class="tag-list">{% for l in mod_v.licensing_permits %}<li>{{ l }}</li>{% endfor %}</ul>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>License/Permit</th>
+                        <th>Description</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reg in mod_v.licensing_permits %}
+                    <tr>
+                        <td><b>{{ reg.regulation }}</b></td>
+                        <td>{{ reg.description }}</td>
+                        <td>{{ reg.action_required }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% endif %}
 
             {% if mod_v.terms_of_service_requirements %}

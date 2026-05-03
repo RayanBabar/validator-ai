@@ -6,7 +6,6 @@ Uses dynamic search with LangChain agents for intelligent query generation.
 
 from src.agents.base import generate_structured_module
 import logging
-from src.agents.search.research import dynamic_research
 from src.models.inputs import ValidationState
 from src.models.outputs import (
     BMCModule, MarketModule, CompetitorModule, FinancialsModule,
@@ -19,7 +18,6 @@ from src.config.prompts import (
     ROADMAP_PROMPT, FUNDING_PROMPT
 )
 
-from src.config.constants import RESEARCH_CONTENT_LIMIT
 from src.agents.search.topics import get_research_topics
 
 

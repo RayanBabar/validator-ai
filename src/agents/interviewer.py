@@ -14,7 +14,6 @@ from src.config.prompts import (
     INTERVIEW_QUALITY_PROMPT,
     INITIAL_CONTEXT_EXTRACTION_PROMPT,
     CONTEXT_AND_OBJECTIVES_PROMPT,
-    CONTEXT_AND_OBJECTIVES_PROMPT,
 )
 from src.utils.date_utils import get_date_context
 from src.config.constants import MIN_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTIONS, RESEARCH_CONTENT_LIMIT
@@ -151,11 +150,13 @@ async def interviewer_node(state: ValidationState) -> dict:
             },
             use_complex=False,
             parse_json=True,
-            provider="openai",
+            provider="claude",
         )
     except Exception as e:
         logger.error(f"Interview LLM error (both OpenAI and Claude failed): {e}")
-        return {"interview_phase": "complete", "workflow_phase": "free_report"}
+        # Re-raise so the API route returns a proper error to the user
+        # instead of silently continuing with zero interview answers
+        raise
 
     # Decide based on LLM response
     llm_wants_more_info = result.get("needs_more_info", False)

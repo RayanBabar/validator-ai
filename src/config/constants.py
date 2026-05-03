@@ -3,8 +3,6 @@ Application constants and configuration values.
 Centralizes magic numbers and configuration for better maintainability.
 """
 from enum import Enum
-from typing import Literal
-from src.config.constants_pricing import MODEL_PRICING, TAVILY_COST_PER_QUERY
 
 # ===========================================
 # TIER CONFIGURATION
@@ -22,15 +20,15 @@ class TierType(str, Enum):
 # ===========================================
 # INTERVIEW CONFIGURATION
 # ===========================================
-MIN_INTERVIEW_QUESTIONS = 5   # Minimum clarifying questions
-MAX_INTERVIEW_QUESTIONS = 10  # Maximum clarifying questions based on complexity
+MIN_INTERVIEW_QUESTIONS = 3   # Minimum clarifying questions
+MAX_INTERVIEW_QUESTIONS = 5  # Maximum clarifying questions based on complexity
 
 # ===========================================
 # SEARCH CONFIGURATION
 # ===========================================
-TAVILY_MAX_RESULTS = 5  # Maximum search results from Tavily
-RESEARCH_CONTENT_LIMIT = 6000  # Character limit for research context
-BASIC_RESEARCH_LIMIT = 3000  # Lighter limit for basic tier
+TAVILY_MAX_RESULTS = 2  # Maximum search results from Tavily (Reduced for cost savings)
+RESEARCH_CONTENT_LIMIT = 2000  # Character limit for research context (Reduced for cost savings)
+BASIC_RESEARCH_LIMIT = 1000  # Lighter limit for basic tier (Reduced for cost savings)
 
 
 
@@ -93,3 +91,8 @@ STANDARD_MODULE_PAGES = {
     "roadmap": 4,       # 3-4 pages
     "funding": 4        # 3-4 pages
 }
+
+# ===========================================
+# COST CONFIGURATION
+# ===========================================
+TAVILY_COST_PER_QUERY = 0.0008

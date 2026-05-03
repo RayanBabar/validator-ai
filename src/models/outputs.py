@@ -1,5 +1,72 @@
-from typing import List, Literal, Dict, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Literal, Optional
+import json
+import logging
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================
+# SHARED COERCION UTILITIES
+# ============================================
+
+def _coerce_literal(value: Any, valid_options: list[str]) -> str:
+    """
+    Coerce an LLM-generated string to match one of the valid Literal options.
+    Uses prefix matching to handle cases like 'Year 1 (only after 80+ subs)' -> 'Year 1'.
+    Falls through to Pydantic's own validation if no match found.
+    """
+    if not isinstance(value, str):
+        return value
+    stripped = value.strip()
+    # Exact match first
+    if stripped in valid_options:
+        return stripped
+    # Prefix match (longest match first to avoid 'Go' matching before 'Go/No-Go' etc.)
+    sorted_options = sorted(valid_options, key=len, reverse=True)
+    for option in sorted_options:
+        if stripped.startswith(option):
+            logger.debug(f"Coerced Literal '{stripped[:50]}...' -> '{option}'")
+            return option
+    # Case-insensitive fallback
+    lower_map = {opt.lower(): opt for opt in valid_options}
+    lower_stripped = stripped.lower()
+    if lower_stripped in lower_map:
+        return lower_map[lower_stripped]
+    for opt_lower, opt_orig in lower_map.items():
+        if lower_stripped.startswith(opt_lower):
+            logger.debug(f"Coerced Literal (case-insensitive) '{stripped[:50]}...' -> '{opt_orig}'")
+            return opt_orig
+    # Return original — let Pydantic raise the proper error
+    return value
+
+
+def _parse_json_string_field(value: Any) -> Any:
+    """
+    If a value is a JSON string (common LLM error for nested models),
+    parse it into a dict. Otherwise return as-is.
+    """
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith('{') or stripped.startswith('['):
+            try:
+                parsed = json.loads(stripped)
+                logger.debug(f"Parsed JSON string field -> {type(parsed).__name__}")
+                return parsed
+            except json.JSONDecodeError:
+                pass
+    return value
+
+
+def _coerce_high_medium_low(v: Any) -> str:
+    """Coerce to High/Medium/Low Literal."""
+    return _coerce_literal(v, ["High", "Medium", "Low"])
+
+
+def _coerce_go_verdict(v: Any) -> str:
+    """Coerce to Go/Conditional-Go/No-Go Literal."""
+    return _coerce_literal(v, ["Go", "Conditional-Go", "No-Go"])
 
 
 # ============================================
@@ -13,6 +80,19 @@ class ScoreDetail(BaseModel):
     """
     score: int = Field(..., ge=0, le=10, description="Numerical score 0-10")
     reasoning: str = Field(..., description="Short explanation (~10 words) of why this score was given")
+
+    @field_validator('score', mode='before')
+    @classmethod
+    def coerce_score(cls, v):
+        """Coerce float to int and clamp to 0-10 range."""
+        if isinstance(v, (float, int)):
+            return max(0, min(10, int(round(v))))
+        if isinstance(v, str):
+            try:
+                return max(0, min(10, int(round(float(v)))))
+            except (ValueError, TypeError):
+                pass
+        return v
 
 
 class SlideContent(BaseModel):
@@ -241,6 +321,11 @@ class BasicRecommendation(BaseModel):
         ..., description="Top 3 recommended actions"
     )
 
+    @field_validator('go_no_go_verdict', mode='before')
+    @classmethod
+    def coerce_verdict(cls, v):
+        return _coerce_go_verdict(v)
+
 
 class BasicExecutiveSummary(BaseModel):
     """Structured Basic Tier Executive Summary (2 Pages Total)"""
@@ -361,7 +446,7 @@ class EnhancedBusinessModelCanvas(BaseModel):
         ..., description="5-7 items: Success indicators and KPIs to track (LTV:CAC, MRR, churn rate, NPS, etc.)"
     )
 
-    bmc_highlights: List[str] = Field(
+    BMC_highlights: List[str] = Field(
         ..., description="3-5 items: Key highlights and differentiators of the business model"
     )
 
@@ -414,6 +499,18 @@ class CustomerDemographics(BaseModel):
     )
 
 
+class MarketEntryBarrier(BaseModel):
+    """Market entry barrier details"""
+    barrier: str = Field(..., description="Name of the barrier")
+    severity: Literal["High", "Medium", "Low"] = Field(..., description="Severity of the barrier")
+    mitigation_strategy: str = Field(..., description="Strategy to overcome this barrier (max 15 words)")
+
+    @field_validator('severity', mode='before')
+    @classmethod
+    def coerce_severity(cls, v):
+        return _coerce_high_medium_low(v)
+
+
 class MarketAnalysisReport(BaseModel):
     """Market Analysis Report (5-7 pages) - STRICT SCHEMA"""
 
@@ -437,7 +534,7 @@ class MarketAnalysisReport(BaseModel):
         ..., description="Demographics, psychographics, and customer behaviors"
     )
 
-    market_entry_barriers: List[str] = Field(
+    market_entry_barriers: List[MarketEntryBarrier] = Field(
         ..., description="Barriers to entry and market opportunities identified"
     )
 
@@ -447,7 +544,7 @@ class Competitor(BaseModel):
     """Single competitor analysis - enhanced for Porter's Five Forces integration"""
 
     name: str = Field(..., description="Competitor company name")
-    hq_location: str = Field(..., description="Country/City headquarters location")
+    HQ_location: str = Field(..., description="Country/City headquarters location")
     strengths: List[str] = Field(..., description="Key strengths of this competitor")
     weaknesses: List[str] = Field(..., description="Key weaknesses of this competitor")
     market_position: str = Field(
@@ -456,6 +553,11 @@ class Competitor(BaseModel):
     pricing_model: str = Field(..., description="Pricing model and {currency} range")
     threat_score: Literal["High", "Medium", "Low"] = Field(..., description="Threat level score")
     threat_rationale: str = Field(..., description="Reasoning for the threat level")
+
+    @field_validator('threat_score', mode='before')
+    @classmethod
+    def coerce_threat_score(cls, v):
+        return _coerce_high_medium_low(v)
 
 
 class IndirectAlternative(BaseModel):
@@ -547,8 +649,13 @@ class DifferentiationOpportunity(BaseModel):
     opportunity: str = Field(
         ..., description="Description of the differentiation opportunity"
     )
-    difficulty: str = Field(..., description="Easy/Medium/Hard to implement")
-    impact: str = Field(..., description="High/Medium/Low expected impact")
+    difficulty: Literal["High", "Medium", "Low"] = Field(..., description="Difficulty to implement")
+    impact: Literal["High", "Medium", "Low"] = Field(..., description="Expected impact")
+
+    @field_validator('difficulty', 'impact', mode='before')
+    @classmethod
+    def coerce_difficulty_impact(cls, v):
+        return _coerce_high_medium_low(v)
 
 
 class CompetitiveMoat(BaseModel):
@@ -626,9 +733,9 @@ class FinancialProjections(BaseModel):
 class UnitEconomics(BaseModel):
     """Unit economics breakdown"""
 
-    cac: str = Field(..., description="Customer Acquisition Cost in {currency}")
-    ltv: str = Field(..., description="Lifetime Value in {currency}")
-    ltv_cac_ratio: str = Field(..., description="LTV:CAC ratio (e.g., '3:1')")
+    CAC: str = Field(..., description="Customer Acquisition Cost in {currency}")
+    LTV: str = Field(..., description="Lifetime Value in {currency}")
+    LTV_CAC_ratio: str = Field(..., description="LTV:CAC ratio (e.g., '3:1')")
     contribution_margin: str = Field(..., description="Contribution margin percentage")
     payback_period_months: str = Field(..., description="CAC payback period in months")
 
@@ -667,10 +774,17 @@ class InvestmentRequirements(BaseModel):
 
 class FinancialKPI(BaseModel):
     """Financial KPI with detailed targets - for Financials module"""
-    kpi: str = Field(..., description="Name of the KPI")
+    KPI: str = Field(..., description="Name of the KPI")
     target: str = Field(..., description="Target value")
     why_critical: str = Field(..., description="Why this KPI is critical")
     year_1_target: str = Field(..., description="Year 1 specific target")
+
+
+class ExpenseItem(BaseModel):
+    """Key expense item for burn rate calculation"""
+    category: str = Field(..., description="Expense category (e.g., 'Salaries', 'Server Costs')")
+    amount: str = Field(..., description="Monthly amount in {currency}")
+    percentage: str = Field(..., description="Percentage of total burn")
 
 
 class BurnRateRunway(BaseModel):
@@ -678,10 +792,8 @@ class BurnRateRunway(BaseModel):
 
     monthly_burn_rate: str = Field(..., description="Monthly burn rate in {currency}")
     runway_months: str = Field(..., description="Runway in months with current funding")
-    key_expenses: Dict[str, str] = Field(..., description="Key monthly expense categories as dict")
-    average_burn_calculation: Optional[str] = Field(None, description="How burn rate was calculated")
-    runway_calculation: Optional[str] = Field(None, description="How runway was calculated")
-
+    key_expenses: List[ExpenseItem] = Field(..., description="Key monthly expense categories")
+    
 
 class FinancialFeasibility(BaseModel):
     """Financial Feasibility (5-6 pages) - STRICT SCHEMA"""
@@ -710,7 +822,7 @@ class FinancialFeasibility(BaseModel):
         ..., description="Monthly burn rate and runway"
     )
 
-    key_financial_kpis: List[FinancialKPI] = Field(
+    key_financial_KPIs: List[FinancialKPI] = Field(
         ..., description="Key financial metrics to track as structured objects"
     )
 
@@ -745,7 +857,7 @@ class Milestone(BaseModel):
 class DevelopmentTimeline(BaseModel):
     """Development timeline"""
 
-    mvp_weeks: str = Field(..., description="Weeks to MVP with key deliverable")
+    MVP_weeks: str = Field(..., description="Weeks to MVP with key deliverable")
     beta_weeks: str = Field(
         ..., description="Weeks to beta launch with key deliverable"
     )
@@ -765,39 +877,48 @@ class MVPFeature(BaseModel):
     effort_days: str = Field(..., description="Estimated effort in days")
 
 
+class TeamRole(BaseModel):
+    """Structured team role details"""
+    role: str = Field(..., description="Role title")
+    skills: str = Field(..., description="Required skills (comma separated)")
+    hiring_priority: Literal["Immediate", "Month 3", "Month 6", "Year 1"] = Field(..., description="Hiring priority")
+    estimated_cost: str = Field(..., description="Estimated monthly cost in {currency}")
+
+    @field_validator('hiring_priority', mode='before')
+    @classmethod
+    def coerce_hiring_priority(cls, v):
+        return _coerce_literal(v, ["Immediate", "Month 3", "Month 6", "Year 1"])
+
+
 class TeamComposition(BaseModel):
     """Technical team composition - enhanced with {geography} hiring notes"""
 
-    required_roles: List[str] = Field(
-        ..., description="Required technical roles with tech requirements"
-    )
-    skills_needed: List[str] = Field(
-        ..., description="Specific technical skills needed"
-    )
+    key_hires: List[TeamRole] = Field(..., description="List of key technical hires required")
     team_size: str = Field(..., description="X people at each stage")
-    hiring_priority: List[str] = Field(
-        ..., description="Role 1 (immediate), Role 2 (month 3)"
-    )
     hiring_notes: str = Field(..., description="Where to find talent in the target geography")
 
 
 class InfrastructureCosts(BaseModel):
     """Infrastructure costs breakdown by stage"""
 
-    mvp_monthly: str = Field(..., description="{currency} X-Y range at MVP stage")
+    MVP_monthly: str = Field(..., description="{currency} X-Y range at MVP stage")
     growth_monthly: str = Field(..., description="{currency} X-Y range at 10K users")
     scale_monthly: str = Field(..., description="{currency} X-Y range at 100K users")
     cost_drivers: List[str] = Field(..., description="Primary cost factors")
+
+
+class ScalingAction(BaseModel):
+    """Action item for scalability plan"""
+    trigger: str = Field(..., description="Trigger for this action (e.g. '10k users')")
+    action: str = Field(..., description="Architecture change required")
+    estimated_effort: str = Field(..., description="Effort to implement (e.g. '2 weeks')")
 
 
 class ScalabilityAnalysis(BaseModel):
     """Scalability planning"""
 
     current_capacity: str = Field(..., description="Current system capacity")
-    scaling_triggers: List[str] = Field(..., description="Triggers for scaling up")
-    architecture_changes: List[str] = Field(
-        ..., description="Required architecture changes"
-    )
+    scaling_plan: List[ScalingAction] = Field(..., description=" structured scaling plan")
 
 
 class SecurityComplianceRequirement(BaseModel):
@@ -818,7 +939,7 @@ class TechnicalRequirements(BaseModel):
         ..., description="Development timeline and milestones"
     )
 
-    mvp_features: List[MVPFeature] = Field(
+    MVP_features: List[MVPFeature] = Field(
         ..., description="MVP feature prioritization (structured objects)"
     )
 
@@ -877,6 +998,25 @@ class ComplianceCosts(BaseModel):
     cost_breakdown: List[str] = Field(..., description="Top 5 major cost drivers (max 10 words each)")
 
 
+class RegulatoryRequirement(BaseModel):
+    """Specific regulatory requirement"""
+    regulation: str = Field(..., description="Name of regulation")
+    description: str = Field(..., description="Brief description of requirement")
+    action_required: str = Field(..., description="Action needed to comply")
+
+
+class IPItem(BaseModel):
+    """Intellectual property item"""
+    protection_type: Literal["Trademark", "Patent", "Copyright"] = Field(..., description="Type of protection")
+    description: str = Field(..., description="What needs protection")
+    action_required: str = Field(..., description="Action needed to secure IP")
+
+    @field_validator('protection_type', mode='before')
+    @classmethod
+    def coerce_protection_type(cls, v):
+        return _coerce_literal(v, ["Trademark", "Patent", "Copyright"])
+
+
 class RegulatoryCompliance(BaseModel):
     """Regulatory Compliance (3-4 pages) - STRICT SCHEMA"""
 
@@ -884,20 +1024,20 @@ class RegulatoryCompliance(BaseModel):
         ..., description="Data privacy requirements and implementation"
     )
 
-    country_regulations: List[str] = Field(
+    country_regulations: List[RegulatoryRequirement] = Field(
         ..., description="Country-specific regulations in target markets"
     )
 
-    industry_compliance: List[str] = Field(
+    industry_compliance: List[RegulatoryRequirement] = Field(
         ..., description="Industry-specific compliance needs"
     )
 
-    licensing_permits: List[str] = Field(
+    licensing_permits: List[RegulatoryRequirement] = Field(
         ..., description="Required licensing and permits"
     )
 
-    intellectual_property: IPConsiderations = Field(
-        ..., description="IP considerations"
+    intellectual_property: List[IPItem] = Field(
+        ..., description="IP considerations - structured list"
     )
 
     terms_of_service_requirements: List[str] = Field(
@@ -918,8 +1058,8 @@ class AcquisitionChannel(BaseModel):
     """Customer acquisition channel"""
 
     channel: str = Field(..., description="Channel name")
-    roi_rank: int = Field(..., description="ROI ranking (1=best)")
-    estimated_cac: str = Field(..., description="Estimated CAC for this channel")
+    ROI_rank: int = Field(..., description="ROI ranking (1=best)")
+    estimated_CAC: str = Field(..., description="Estimated CAC for this channel")
     strategy: str = Field(..., description="Strategy for this channel")
 
 
@@ -958,6 +1098,26 @@ class PricingPositioning(BaseModel):
     price_points: List[str] = Field(..., description="Key price points")
 
 
+class GrowthTactic(BaseModel):
+    """Growth hacking tactic"""
+    tactic: str = Field(..., description="Name of the tactic")
+    expected_impact: Literal["High", "Medium", "Low"] = Field(..., description="Expected impact")
+    cost_effort: Literal["High", "Medium", "Low"] = Field(..., description="Cost/Effort required")
+    description: str = Field(..., description="Brief description (max 15 words)")
+
+    @field_validator('expected_impact', 'cost_effort', mode='before')
+    @classmethod
+    def coerce_impact_effort(cls, v):
+        return _coerce_high_medium_low(v)
+
+
+class PartnershipOpportunity(BaseModel):
+    """Partnership opportunity"""
+    partner_type: str = Field(..., description="Type of partner (e.g. 'Integrator')")
+    potential_partners: str = Field(..., description="Examples of partners")
+    value_exchange: str = Field(..., description="Value for both parties")
+
+
 class GoToMarketStrategy(BaseModel):
     """Go-to-Market Strategy (4-5 pages) - STRICT SCHEMA"""
 
@@ -971,11 +1131,11 @@ class GoToMarketStrategy(BaseModel):
         ..., description="Marketing budget allocation"
     )
 
-    content_seo_strategy: ContentSEOStrategy = Field(
+    content_SEO_strategy: ContentSEOStrategy = Field(
         ..., description="Content marketing and SEO strategy"
     )
 
-    partnerships: List[str] = Field(
+    partnerships: List[PartnershipOpportunity] = Field(
         ..., description="Partnership and distribution opportunities"
     )
 
@@ -983,7 +1143,7 @@ class GoToMarketStrategy(BaseModel):
         ..., description="Pricing strategy and market positioning"
     )
 
-    growth_hacking: List[str] = Field(..., description="Growth hacking tactics")
+    growth_hacking: List[GrowthTactic] = Field(..., description="Growth hacking tactics")
 
 
 # --- Risk Assessment ---
@@ -1004,6 +1164,25 @@ class ContingencyPlan(BaseModel):
     pivot_option: str = Field(..., description="Potential pivot if needed")
 
 
+class KillSwitch(BaseModel):
+    """Kill switch indicator"""
+    indicator: str = Field(..., description="Metric or event to watch")
+    threshold: str = Field(..., description="Threshold that triggers action")
+    action: str = Field(..., description="Action to take (pivot/shutdown)")
+
+
+class DependencyRisk(BaseModel):
+    """Dependency risk"""
+    dependency: str = Field(..., description="External dependency")
+    risk_level: Literal["High", "Medium", "Low"] = Field(..., description="Risk level")
+    contingency: str = Field(..., description="Backup plan")
+
+    @field_validator('risk_level', mode='before')
+    @classmethod
+    def coerce_risk_level(cls, v):
+        return _coerce_high_medium_low(v)
+
+
 class RiskAssessment(BaseModel):
     """Risk Assessment Matrix (2-3 pages) - STRICT SCHEMA"""
 
@@ -1019,11 +1198,11 @@ class RiskAssessment(BaseModel):
         ..., description="Contingency plans and pivot options"
     )
 
-    kill_switches: List[str] = Field(
+    kill_switches: List[KillSwitch] = Field(
         ..., description="Clear indicators when to stop or pivot"
     )
 
-    dependency_risks: List[str] = Field(
+    dependency_risks: List[DependencyRisk] = Field(
         ..., description="Dependency risks and single points of failure"
     )
 
@@ -1064,7 +1243,7 @@ class YearOneObjectives(BaseModel):
     revenue_target: str = Field(..., description="Year 1 revenue target")
     customer_target: str = Field(..., description="Year 1 customer target")
     key_objectives: List[str] = Field(..., description="Key strategic objectives")
-    okrs: List[OKR] = Field(..., description="Top OKRs for Year 1")
+    OKRs: List[OKR] = Field(..., description="Top OKRs for Year 1")
 
 class ResourceNeed(BaseModel):
     """Single resource requirement"""
@@ -1089,6 +1268,18 @@ class SuccessMetrics(BaseModel):
     quarterly_metrics: List[str] = Field(..., description="Quarterly tracking metrics")
 
 
+class CriticalDependency(BaseModel):
+    """Critical path dependency"""
+    activity: str = Field(..., description="Key activity")
+    dependency: str = Field(..., description="What it depends on")
+    impact: Literal["High", "Medium", "Low"] = Field(..., description="Impact on timeline if delayed")
+
+    @field_validator('impact', mode='before')
+    @classmethod
+    def coerce_impact(cls, v):
+        return _coerce_high_medium_low(v)
+
+
 class ImplementationRoadmap(BaseModel):
     """Implementation Roadmap (3-4 pages) - STRICT SCHEMA"""
 
@@ -1106,7 +1297,7 @@ class ImplementationRoadmap(BaseModel):
         ..., description="Resource requirements timeline"
     )
 
-    critical_path: List[str] = Field(..., description="Critical path activities")
+    critical_path: List[CriticalDependency] = Field(..., description="Critical path activities")
 
     success_metrics: SuccessMetrics = Field(
         ..., description="Success metrics by timeframe"
@@ -1140,7 +1331,7 @@ class InvestorProfile(BaseModel):
     """Investor landscape"""
 
     investor_types: List[str] = Field(..., description="Types of investors to target")
-    vcs: List[str] = Field(..., description="Relevant VCs")
+    VCs: List[str] = Field(..., description="Relevant VCs")
     angel_networks: List[str] = Field(..., description="Relevant angel networks")
 
 
@@ -1166,6 +1357,13 @@ class ValuationBenchmarks(BaseModel):
     equity_guidance: str = Field(..., description="Equity dilution guidance")
 
 
+class ProcessStep(BaseModel):
+    """Fundraising process step"""
+    step_name: str = Field(..., description="Name of the step")
+    duration: str = Field(..., description="Estimated duration")
+    key_activities: str = Field(..., description="Key activities to perform")
+
+
 class FundingStrategy(BaseModel):
     """Funding Strategy Guide (3-4 pages) - STRICT SCHEMA"""
 
@@ -1187,9 +1385,19 @@ class FundingStrategy(BaseModel):
         ..., description="Valuation benchmarks and equity"
     )
 
-    fundraising_process: List[str] = Field(
+    fundraising_process: List[ProcessStep] = Field(
         ..., description="Fundraising process best practices"
     )
+
+    @model_validator(mode='before')
+    @classmethod
+    def parse_json_string_fields(cls, data):
+        """Parse nested model fields that arrive as JSON strings instead of dicts."""
+        if isinstance(data, dict):
+            for field_name in ('investor_landscape', 'funding_timeline', 'valuation_benchmarks'):
+                if field_name in data:
+                    data[field_name] = _parse_json_string_field(data[field_name])
+        return data
 
 
 # --- Executive Summary ---
@@ -1227,6 +1435,11 @@ class RecommendationSummary(BaseModel):
     immediate_action_items: List[str] = Field(
         ..., description="Top 5 recommended actions with timelines"
     )
+
+    @field_validator('go_no_go_verdict', mode='before')
+    @classmethod
+    def coerce_verdict(cls, v):
+        return _coerce_go_verdict(v)
 
 
 class ExecutiveSummary(BaseModel):

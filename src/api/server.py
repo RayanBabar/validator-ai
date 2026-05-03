@@ -69,16 +69,10 @@ app.include_router(validation)
 @app.get("/health", tags=["Health"])
 async def health_check():
     """
-    Health check endpoint for load balancers and monitoring.
-    Returns API status, environment info, and external service metrics.
+    Health check endpoint for monitoring.
     """
-    from src.utils.health_monitor import health_monitor
-    
-    service_metrics = await health_monitor.get_metrics()
-    
     return {
         "status": "healthy",
         "environment": settings.ENVIRONMENT,
         "version": "1.0.0",
-        "services": service_metrics,
     }

@@ -1,12 +1,11 @@
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Request, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from uuid import uuid4
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, Union
 import logging
-import json
 from src.models.inputs import (
     StartupSubmission,
     AdminUpdate,
@@ -226,7 +225,7 @@ async def upgrade_tier(
         await wf_module.app_graph.aupdate_state(
             config,
             update_payload,
-            as_node="research",
+            as_node="interviewer", # Trick graph into thinking interview just finished -> goes to research
         )
 
     async def run_paid_workflow():

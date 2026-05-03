@@ -7,13 +7,14 @@ These should be populated at runtime using get_date_context() from src.utils.dat
 """
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.prompts import ChatPromptTemplate
 
 # ============================================
 # SHARED CONSTANTS (DEDUPLICATION)
 # ============================================
 
-PDF_COMPATIBILITY_NOTE = "PDF COMPATIBILITY: Do NOT use emojis, special characters, or non-Latin symbols."
+PDF_COMPATIBILITY_NOTE = (
+    "PDF COMPATIBILITY: Do NOT use emojis, special characters, or non-Latin symbols."
+)
 
 CURRENCY_FORMAT_INSTRUCTIONS = """AMOUNT FORMAT STANDARD: All monetary values MUST follow this exact format:
 - Use {currency} prefix: {currency} 1,000,000
@@ -28,8 +29,11 @@ CURRENCY_FORMAT_INSTRUCTIONS = """AMOUNT FORMAT STANDARD: All monetary values MU
 # PHASE 1: INTERVIEW PROMPTS
 # ============================================
 
-INTERVIEW_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """
+INTERVIEW_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """
 You are a senior business consultant (ex-McKinsey/Bain, 20+ years experience) conducting an in-depth discovery session with a startup founder.
 Your mission is to deeply understand and engage with open-ended questions that explore EVERY critical aspect of their business idea.
 
@@ -183,8 +187,11 @@ Return VALID JSON ONLY:
         "context_specificity": 0-10
     }}
 }}
-"""),
-    ("human", """
+""",
+        ),
+        (
+            "human",
+            """
 PREVIOUS QUESTIONS ASKED:
 {previous_questions}
 
@@ -192,8 +199,10 @@ CLIENT'S RESPONSES:
 {previous_answers}
 
 INTERVIEW PROGRESS: Question {questions_asked} of {max_questions}
-""")
-])
+""",
+        ),
+    ]
+)
 
 SYNTHESIS_PROMPT = ChatPromptTemplate.from_template("""
 You are a senior due diligence analyst at a top-tier VC firm.
@@ -454,7 +463,8 @@ Return VALID JSON ONLY:
 # PHASE 2: FREE TIER PROMPTS
 # ============================================
 
-FREE_TIER_VIABILITY_PROMPT = ChatPromptTemplate.from_template("""
+FREE_TIER_VIABILITY_PROMPT = ChatPromptTemplate.from_template(
+    """
 You are a senior McKinsey consultant with 20 years of experience evaluating startup viability.
 Apply rigorous analytical frameworks to assess this startup idea based on the founder interview and market research.
 
@@ -548,8 +558,12 @@ Consider: What did the founder reveal about their background and commitment duri
 ## STEP 3: GENERATE OUTPUT (Per Tiers.docx Free Tier Format)
 
 OUTPUT LENGTH CONSTRAINT: Total output must be ~300 words max (Half A4 page). Be concise.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 
 FIELD LENGTH CONSTRAINTS:
 - value_prop: 1 sentence ONLY (~15-20 words max) - Killer Value Proposition they can use in conversations
@@ -579,14 +593,16 @@ Return VALID JSON ONLY:
     "what_if_scenario": "One pivot scenario to demonstrate platform capability",
     "personalized_next_step": "Specific action they can take today to move forward"
 }}
-""")
+"""
+)
 
 
 # ============================================
 # PHASE 3: BASIC TIER PROMPTS
 # ============================================
 
-BASIC_BMC_PROMPT = ChatPromptTemplate.from_template("""
+BASIC_BMC_PROMPT = ChatPromptTemplate.from_template(
+    """
 You are a senior Business Consultant using the Business Model Canvas methodology.
 Your goal is to create a concise, actionable 1-page business model for a startup.
 
@@ -608,28 +624,45 @@ LIVE MARKET RESEARCH AND Q&A HISTORY AND SYNTHESIZED INTELLIGENCE:
 Create a CONCISE one-page document with the 9 key building blocks.
 IMPORTANT: Each block should contain 3-4 SHORT bullet points (1 sentence each, max 15 words per bullet).
 
-1. **Customer Segments**: Who exactly are we creating value for?
-2. **Value Propositions**: What value do we deliver to the customer?
-3. **Channels**: How do we reach our customer segments?
-4. **Customer Relationships**: What type of relationship does each customer segment expect?
-5. **Revenue Streams**: For what value are our customers really willing to pay?
-6. **Key Resources**: What key resources do our value propositions require?
-7. **Key Activities**: What key activities do our value propositions require?
-8. **Key Partnerships**: Who are our key partners and suppliers?
-9. **Cost Structure**: What are the most important costs inherent in our business model?
+1. **customer_segments**: Who exactly are we creating value for?
+2. **value_propositions**: What value do we deliver to the customer?
+3. **channels**: How do we reach our customer segments?
+4. **customer_relationships**: What type of relationship does each customer segment expect?
+5. **revenue_streams**: For what value are our customers really willing to pay?
+6. **key_resources**: What key resources do our value propositions require?
+7. **key_activities**: What key activities do our value propositions require?
+8. **key_partnerships**: Who are our key partners and suppliers?
+9. **cost_structure**: What are the most important costs inherent in our business model?
 
 OUTPUT GUIDELINES:
 - Be specific to the {geography} market.
 - Use {currency} for all financial references.
 - Focus on the most critical elements, not an exhaustive list.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 
-Return VALID JSON matching the `BusinessModelCanvas` schema.
-""")
+Return VALID JSON ONLY — no markdown, no explanations. Use EXACTLY these field names:
+{{
+    "customer_segments": ["Segment 1 (max 15 words)", "Segment 2", "Segment 3"],
+    "value_propositions": ["Value prop 1", "Value prop 2", "Value prop 3"],
+    "channels": ["Channel 1", "Channel 2", "Channel 3"],
+    "customer_relationships": ["Relationship type 1", "Relationship type 2"],
+    "revenue_streams": ["{currency} X/month subscription", "One-time hardware sale"],
+    "key_resources": ["Resource 1", "Resource 2"],
+    "key_activities": ["Activity 1", "Activity 2"],
+    "key_partnerships": ["Partner 1", "Partner 2"],
+    "cost_structure": ["{currency} X fixed costs", "{currency} Y variable costs"]
+}}
+"""
+)
 
 
-BASIC_EXEC_SUMMARY_PROMPT = ChatPromptTemplate.from_template("""
+BASIC_EXEC_SUMMARY_PROMPT = ChatPromptTemplate.from_template(
+    """
 You are a Managing Partner at a top-tier VC firm in {geography}.
 Your task is to write a balanced, actionable Executive Summary for an Investment Committee Memo.
 
@@ -672,25 +705,59 @@ OUTPUT GUIDELINES:
 - **Specifics**: Use specific numbers, competitor names, and {currency} figures where available.
 - **Context**: Ensure all insights are relevant to the {geography} market.
 - **JSON FORMAT**: Strictly valid JSON. NO trailing commas in lists or objects. Use double quotes.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 
-Return VALID JSON matching the `BasicExecutiveSummary` schema.
-""")
+Return VALID JSON ONLY — no markdown, no explanations. Use EXACTLY these field names:
+{{
+    "problem_summary": "~200 words describing who has this problem, severity, and cost of inaction",
+    "proposed_solution": "~200 words describing how the solution works and why customers would choose it",
+    "report_highlights": [
+        "Key highlight 1 (plain string, max 50 words)",
+        "Key highlight 2 (plain string, max 50 words)",
+        "Key highlight 3 (plain string, max 50 words)",
+        "Key highlight 4 (plain string, max 50 words)",
+        "Key highlight 5 (plain string, max 50 words)"
+    ],
+    "recommendation": {{
+        "go_no_go_verdict": "Go / Conditional-Go / No-Go",
+        "rating_justification": "2-3 sentences explaining the verdict based on the score",
+        "immediate_action_items": ["Action 1", "Action 2", "Action 3"]
+    }}
+}}
+"""
+)
 
 
 # ============================================
 # PHASE 4: STANDARD MODULE PROMPTS
 # ============================================
 
-BMC_PROMPT = """You are a certified Strategyzer Business Model Canvas consultant who has coached 500+ startups.
-Apply the Osterwalder methodology rigorously to create a comprehensive, actionable business model.
+# SHARED CONTEXT SYSTEM PROMPT
+SHARED_CONTEXT_PROMPT = """You are a senior Strategy Consultant and Startup Expert.
+Your task is to analyze the following startup validation based on the provided research and interview data.
 
 STARTUP IDEA DESCRIPTION:
 {title}
 
+MARKET CONTEXT:
+- Geographic Focus: {geography}
+- Regulatory Environment: {regulatory_context} compliance
+- Currency: {currency}
+
 MARKET RESEARCH DATA AND Q&A HISTORY AND SYNTHESIZED INTELLIGENCE:
 {search_results}
+
+---
+"""
+
+BMC_PROMPT = (
+    """You are a certified Strategyzer Business Model Canvas consultant who has coached 500+ startups.
+Apply the Osterwalder methodology rigorously to create a comprehensive, actionable business model.
 
 ---
 
@@ -715,19 +782,18 @@ For each of the 9 blocks, consider:
 **Key Partnerships**: Supplier? Strategic alliance? Coopetition? Who provides resources you don't have?
 **Cost Structure**: Fixed vs variable? Economies of scale? Cost-driven or value-driven?
 
-## MARKET CONTEXT
-- Geographic Focus: {geography}
-- Business Culture: Standard business practices for {geography}
-- Startup Ecosystem: {geography} specific dynamics
-- Regulatory Environment: {regulatory_context} compliance
-
-- Cultural differences across target markets
+## MARKETING CONTEXT (Implied from Shared Context)
+- Focus on {geography} business culture and ecosystem.
 
 ---
 
 OUTPUT LENGTH: 1-2 A4 pages (~500-1000 words).
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 
 Return VALID JSON ONLY matching this schema:
 {{
@@ -742,17 +808,13 @@ Return VALID JSON ONLY matching this schema:
     "cost_structure": ["Cost 1: {currency} X (Fixed)", "Cost 2: {currency} Y (Variable)"],
     "regional_adjustments": ["Compliance implication", "Language requirement", ...],
     "key_metrics": ["North Star Metric", "Secondary Metric 1", ...],
-    "bmc_highlights": ["Key insight 1", "Strategic opportunity", ...]
+    "BMC_highlights": ["Key insight 1", "Strategic opportunity", ...]
 }}"""
+)
 
-MARKET_PROMPT = """You are a senior market research analyst at Gartner with expertise in {industry} markets in {geography}.
+MARKET_PROMPT = (
+    """You are a senior market research analyst at Gartner with expertise in {industry} markets in {geography}.
 Apply rigorous market sizing methodology to provide investment-grade market analysis.
-
-STARTUP IDEA DESCRIPTION:
-{title}
-
-RESEARCH DATA AND Q&A HISTORY AND SYNTHESIZED INTELLIGENCE:
-{search_results}
 
 ---
 
@@ -806,8 +868,12 @@ Apply both Top-Down AND Bottom-Up approaches, then cross-validate:
 ---
 
 OUTPUT LENGTH: 3-4 A4 pages (~1500-2000 words).
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 - X.XY format: 1,000,000 = 1M, 1,000,000,000 = 1B
 
 Return VALID JSON ONLY matching this schema:
@@ -828,18 +894,16 @@ Return VALID JSON ONLY matching this schema:
         "psychographics": "Values, behaviors, decision factors",
         "pain_points": ["Quantified pain with business impact", ...]
     }},
-    "market_entry_barriers": ["Barrier 1 with mitigation strategy", ...]
+    "market_entry_barriers": [
+        {{"barrier": "Name of barrier", "severity": "High/Medium/Low", "mitigation_strategy": "Strategy (max 15 words)"}}
+    ]
 }}"""
+)
 
 
-COMPETITOR_PROMPT = """You are a Managing Director at a top-tier strategy consulting firm (ex-McKinsey/Bain/BCG) specializing in competitive intelligence for {geography} {industry} markets.
+COMPETITOR_PROMPT = (
+    """You are a Managing Director at a top-tier strategy consulting firm (ex-McKinsey/Bain/BCG) specializing in competitive intelligence for {geography} {industry} markets.
 Your mission is to provide investment-grade competitive analysis that identifies threats, opportunities, and defensible positioning strategies.
-
-STARTUP IDEA DESCRIPTION:
-{title}
-
-RESEARCH DATA AND Q&A HISTORY AND SYNTHESIZED INTELLIGENCE:
-{search_results}
 
 ---
 
@@ -900,8 +964,12 @@ If founder interview data is available:
 ---
 
 OUTPUT LENGTH: 2-3 A4 pages (~1000-1500 words). Be comprehensive but focused.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 - X.XY format: 1,000,000 = 1M, 1,000,000,000 = 1B
 - **CONSTRAINT**: Keep all descriptions concise for table display. Strengths/Weaknesses max 10 words.
 
@@ -910,7 +978,7 @@ Return VALID JSON ONLY matching this schema:
     "direct_competitors": [
         {{
             "name": "Competitor Name",
-            "hq_location": "Country/City",
+            "HQ_location": "Country/City",
             "funding": "{currency} XM Series X, Bootstrap, or 'Undisclosed' (Never null)",
             "estimated_revenue": "{currency} XM ARR, 'Unknown' (Never null)",
             "strengths": ["Strength 1", "Strength 2", "Strength 3"],
@@ -943,7 +1011,7 @@ Return VALID JSON ONLY matching this schema:
         "recommended_position": "Where this startup should position and why"
     }},
     "differentiation_opportunities": [
-        {{"opportunity": "Description", "difficulty": "Easy/Medium/Hard", "impact": "High/Medium/Low"}}
+        {{"opportunity": "Description", "difficulty": "High/Medium/Low", "impact": "High/Medium/Low"}}
     ],
     "competitor_strategies": [
         {{"competitor_name": "Name", "strategy_summary": "Strategy", "target_segment": "Target"}}
@@ -953,15 +1021,11 @@ Return VALID JSON ONLY matching this schema:
     ],
     "competitive_strategy_recommendation": "2-3 sentence strategic recommendation for competitive positioning"
 }}"""
+)
 
-FINANCE_PROMPT = """You are a Serial CFO and investment banker who has guided 50+ {geography} startups through seed to Series C.
+FINANCE_PROMPT = (
+    """You are a Serial CFO and investment banker who has guided 50+ {geography} startups through seed to Series C.
 Your mission is to build a realistic, investor-ready financial model that withstands rigorous VC due diligence.
-
-STARTUP IDEA DESCRIPTION:
-{title}
-
-RESEARCH DATA AND Q&A HISTORY AND SYNTHESIZED INTELLIGENCE:
-{search_results}
 
 ---
 
@@ -1035,8 +1099,12 @@ If founder interview data is available:
 ---
 
 OUTPUT LENGTH: 2-3 A4 pages (~1000-1500 words). Be comprehensive but focused.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 - **CONSTRAINT**: Key assumptions must be short strings (max 10 words each).
 
 Return VALID JSON ONLY matching this schema:
@@ -1055,9 +1123,9 @@ Return VALID JSON ONLY matching this schema:
         "revenue_drivers": ["Driver 1", "Driver 2"]
     }},
     "unit_economics": {{
-        "cac": "{currency} X",
-        "ltv": "{currency} Y",
-        "ltv_cac_ratio": "Ratio (e.g. 3:1)",
+        "CAC": "{currency} X",
+        "LTV": "{currency} Y",
+        "LTV_CAC_ratio": "Ratio (e.g. 3:1)",
         "contribution_margin": "Percentage",
         "payback_period_months": "Number of months"
     }},
@@ -1076,29 +1144,25 @@ Return VALID JSON ONLY matching this schema:
     "burn_rate_runway": {{
         "monthly_burn_rate": "{currency} X",
         "runway_months": "Number of months",
-        "key_expenses": {{
-            "expense_category_1": "{currency} X",
-            "expense_category_2": "{currency} Y"
+        "key_expenses": [
+            {{"category": "Expense Category", "amount": "{currency} X", "percentage": "% of burn"}}
+        ]
         }}
     }},
-    "key_financial_kpis": [
+    "key_financial_KPIs": [
         {{
-            "kpi": "KPI Name",
+            "KPI": "KPI Name",
             "target": "Target Value (e.g. 60%)",
             "why_critical": "Reasoning for importance",
             "year_1_target": "Year 1 specific target"
         }}
     ]
 }}"""
+)
 
-TECH_PROMPT = """You are a Principal Engineer and Solutions Architect (ex-Google/Meta/AWS) with expertise in building scalable products.
+TECH_PROMPT = (
+    """You are a Principal Engineer and Solutions Architect (ex-Google/Meta/AWS) with expertise in building scalable products.
 Your mission is to design a robust, secure, GDPR-compliant technical architecture that can scale from MVP to 1M users.
-
-STARTUP IDEA DESCRIPTION:
-{title}
-
-RESEARCH DATA AND Q&A HISTORY AND SYNTHESIZED INTELLIGENCE:
-{search_results}
 
 ---
 
@@ -1133,8 +1197,12 @@ If founder interview data shows technical preferences or constraints:
 ---
 
 OUTPUT LENGTH: 2 A4 pages (~800-1000 words). Be comprehensive but focused.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 
 Return VALID JSON ONLY matching this schema:
 {{
@@ -1147,7 +1215,7 @@ Return VALID JSON ONLY matching this schema:
         "stack_rationale": "Why this stack is optimal for this startup"
     }},
     "development_timeline": {{
-        "mvp_weeks": "X weeks with key deliverable",
+        "MVP_weeks": "X weeks with key deliverable",
         "beta_weeks": "X weeks with key deliverable",
         "launch_weeks": "X weeks with key deliverable",
         "key_milestones": [
@@ -1155,40 +1223,37 @@ Return VALID JSON ONLY matching this schema:
             {{"week": "Week 3-4", "tasks": "Detailed tasks", "deliverable": "Output"}}
         ]
     }},
-    "mvp_features": [
+    "MVP_features": [
         {{"feature": "Feature name", "priority": "Must-have/Nice-to-have", "effort_days": "X days"}}
     ],
     "team_composition": {{
-        "required_roles": ["Role with specific tech requirements"],
-        "skills_needed": ["Specific technical skills"],
+        "key_hires": [
+            {{"role": "Role Title", "skills": "Required Skills", "hiring_priority": "Immediate/Month 3/Month 6/Year 1", "estimated_cost": "{currency} X"}}
+        ],
         "team_size": "X people at each stage",
-        "hiring_priority": ["Role 1 (immediate)", "Role 2 (month 3)"],
         "hiring_notes": "Where to find talent in {geography}"
     }},
     "infrastructure_costs": {{
-        "mvp_monthly": "{currency} X-Y range",
+        "MVP_monthly": "{currency} X-Y range",
         "growth_monthly": "{currency} X-Y range at 10K users",
         "scale_monthly": "{currency} X-Y range at 100K users",
         "cost_drivers": ["Primary cost factor 1", "Factor 2"]
     }},
     "scalability_plan": {{
         "current_capacity": "X concurrent users with current design",
-        "scaling_triggers": ["Trigger 1: action when X happens"],
-        "architecture_changes": ["Change 1 at scale level", "Change 2"]
+        "scaling_plan": [
+            {{"trigger": "10k users", "action": "Architecture change", "estimated_effort": "2 weeks"}}
+        ]
     }},
     "security_compliance": [
         {{"requirement": "Compliance requirement", "implementation": "How to implement"}}
     ]
 }}"""
+)
 
-REGULATORY_PROMPT = """You are a Partner at a top law firm specializing in regulatory compliance for {geography} ({regulatory_context}).
+REGULATORY_PROMPT = (
+    """You are a Partner at a top law firm specializing in regulatory compliance for {geography} ({regulatory_context}).
 Your mission is to identify all legal risks, compliance requirements, and provide a clear path to full regulatory compliance for a {geography} startup.
-
-STARTUP IDEA DESCRIPTION:
-{title}
-
-RESEARCH DATA AND Q&A HISTORY AND SYNTHESIZED INTELLIGENCE:
-{search_results}
 
 ---
 
@@ -1230,8 +1295,12 @@ If founder mentioned regulatory concerns:
 ---
 
 OUTPUT LENGTH: 3-4 A4 pages (~800-1000 words). Be comprehensive but focused.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 
 Return VALID JSON matching the schema with detailed compliance requirements, timeline, costs, and specific action items.
 {{
@@ -1242,14 +1311,18 @@ Return VALID JSON matching the schema with detailed compliance requirements, tim
         "required_measures": ["Measure 1", "Measure 2"],
         "estimated_cost": "{currency} X"
     }},
-    "country_regulations": ["Regulation 1", "Regulation 2"],
-    "industry_compliance": ["Requirement 1", "Requirement 2"],
-    "licensing_permits": ["License 1", "Permit 2"],
-    "intellectual_property": {{
-        "trademark_needs": ["Need 1"],
-        "patent_opportunities": ["Opp 1"],
-        "copyright_items": ["Item 1"]
-    }},
+    "country_regulations": [
+        {{"regulation": "Name", "description": "Description", "action_required": "Action"}}
+    ],
+    "industry_compliance": [
+        {{"regulation": "Name", "description": "Description", "action_required": "Action"}}
+    ],
+    "licensing_permits": [
+        {{"regulation": "Name", "description": "Description", "action_required": "Action"}}
+    ],
+    "intellectual_property": [
+        {{"protection_type": "Trademark/Patent/Copyright", "description": "What needs protection", "action_required": "Action"}}
+    ],
     "terms_of_service_requirements": ["Clause 1", "Clause 2"],
     "privacy_policy_requirements": ["Requirement 1", "Requirement 2"],
     "compliance_costs": {{
@@ -1259,15 +1332,11 @@ Return VALID JSON matching the schema with detailed compliance requirements, tim
         "cost_breakdown": ["Major cost 1 ({currency} X)", "Major cost 2 ({currency} Y) - use {currency} only"]
     }}
 }}"""
+)
 
-GTM_PROMPT = """You are a VP of Growth who has scaled 10+ B2B/B2C startups in {geography} from 0 to 10M ARR.
+GTM_PROMPT = (
+    """You are a VP of Growth who has scaled 10+ B2B/B2C startups in {geography} from 0 to 10M ARR.
 Your mission is to create a high-ROI, execution-ready go-to-market strategy that drives sustainable customer acquisition.
-
-STARTUP IDEA DESCRIPTION:
-{title}
-
-RESEARCH DATA AND Q&A HISTORY AND SYNTHESIZED INTELLIGENCE:
-{search_results}
 
 ---
 
@@ -1326,8 +1395,12 @@ If founder shared customer acquisition ideas:
 ---
 
 OUTPUT LENGTH: 2-3 A4 pages (~1000-1200 words). Be execution-focused.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 - **CONSTRAINT**: Strategies must be short summaries (max 15 words) for table display.
 
 Rank channels by expected ROI (1=best).
@@ -1336,8 +1409,8 @@ Return VALID JSON matching the schema with detailed channel analysis, 90-day pla
     "acquisition_channels": [
         {{
             "channel": "Name",
-            "roi_rank": 1,
-            "estimated_cac": "{currency} X",
+            "ROI_rank": 1,
+            "estimated_CAC": "{currency} X",
             "strategy": "Strategy summary"
         }}
     ],
@@ -1352,28 +1425,28 @@ Return VALID JSON matching the schema with detailed channel analysis, 90-day pla
         "content_marketing": "{currency} Z",
         "events_pr": "{currency} A"
     }},
-    "content_seo_strategy": {{
+    "content_SEO_strategy": {{
         "target_keywords": ["Keyword 1"],
         "content_types": ["Blog", "Video"],
         "publishing_frequency": "Weekly"
     }},
-    "partnerships": ["Partner 1", "Partner 2"],
+    "partnerships": [
+        {{"partner_type": "Type", "potential_partners": "Examples", "value_exchange": "Value"}}
+    ],
     "pricing_positioning": {{
         "positioning_statement": "Statement",
         "pricing_strategy": "Strategy",
         "price_points": ["{currency} X", "{currency} Y"]
     }},
-    "growth_hacking": ["Tactic 1", "Tactic 2"]
+    "growth_hacking": [
+        {{"tactic": "Name", "expected_impact": "High/Medium/Low", "cost_effort": "High/Medium/Low", "description": "Brief description"}}
+    ]
 }}"""
+)
 
-RISK_PROMPT = """You are a Chief Risk Officer (CRO) at a leading {geography} venture capital firm who has seen 500+ startup failures.
+RISK_PROMPT = (
+    """You are a Chief Risk Officer (CRO) at a leading {geography} venture capital firm who has seen 500+ startup failures.
 Your mission is to identify every possible risk, quantify impact, and provide actionable mitigation strategies to maximize survival probability.
-
-STARTUP IDEA DESCRIPTION:
-{title}
-
-RESEARCH DATA AND Q&A HISTORY AND SYNTHESIZED INTELLIGENCE:
-{search_results}
 
 ---
 
@@ -1440,20 +1513,27 @@ Based on founder interview:
 ---
 
 OUTPUT LENGTH: 1-2 A4 pages (~600-800 words). Focus on actionable insights.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 - **CONSTRAINT**: Mitigation strategies must be actionable and short (max 15 words).
 
-Return VALID JSON matching the schema with ranked risks, mitigation strategies, and clear kill switches."""
+    "kill_switches": [
+        {{"indicator": "Metric/Event", "threshold": "Value", "action": "Action"}}
+    ],
+    "dependency_risks": [
+        {{"dependency": "Name", "risk_level": "High/Medium/Low", "contingency": "Plan"}}
+    ],
+    "market_timing_risks": ["Risk 1", "Risk 2"]
+}}"""
+)
 
-ROADMAP_PROMPT = """You are a Chief Product Officer (CPO) who has shipped products at startups from pre-seed to Series C.
+ROADMAP_PROMPT = (
+    """You are a Chief Product Officer (CPO) who has shipped products at startups from pre-seed to Series C.
 Your mission is to create a realistic and doable, execution-focused roadmap that balances speed-to-market with sustainable growth.
-
-STARTUP IDEA DESCRIPTION:
-{title}
-
-RESEARCH DATA AND Q&A HISTORY AND SYNTHESIZED INTELLIGENCE:
-{search_results}
 
 ---
 
@@ -1519,8 +1599,12 @@ Based on founder's timeline expectations:
 ---
 
 OUTPUT LENGTH: 2 A4 pages (~800-1000 words). Be specific and actionable.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 
 Return VALID JSON matching the schema with phase-by-phase plan, OKRs, and critical path.
 {{
@@ -1541,7 +1625,7 @@ Return VALID JSON matching the schema with phase-by-phase plan, OKRs, and critic
         "revenue_target": "{currency} X",
         "customer_target": "X Customers",
         "key_objectives": ["Obj 1"],
-        "okrs": [
+        "OKRs": [
             {{
                 "objective": "Objective",
                 "key_results": ["KR 1"]
@@ -1554,22 +1638,20 @@ Return VALID JSON matching the schema with phase-by-phase plan, OKRs, and critic
         "q3_needs": [{{ "resource": "Role", "details": "{currency} X/month" }}],
         "q4_needs": [{{ "resource": "Role", "details": "{currency} X/month" }}]
     }},
-    "critical_path": ["Activity 1", "Activity 2"],
+    "critical_path": [
+        {{"activity": "Activity Name", "dependency": "Dependency Name", "impact": "High/Medium/Low"}}
+    ],
     "success_metrics": {{
         "weekly_metrics": ["Metric 1"],
         "monthly_metrics": ["Metric 2"],
         "quarterly_metrics": ["Metric 3"]
     }}
 }}"""
+)
 
-FUNDING_PROMPT = """You are a General Partner at a top-tier VC firm in {geography} who has led 100+ investments from pre-seed to Series B.
+FUNDING_PROMPT = (
+    """You are a General Partner at a top-tier VC firm in {geography} who has led 100+ investments from pre-seed to Series B.
 Your mission is to create a fundable equity story and realistic capital strategy optimized for the {geography} funding landscape.
-
-STARTUP IDEA DESCRIPTION:
-{title}
-
-RESEARCH DATA AND Q&A HISTORY AND SYNTHESIZED INTELLIGENCE:
-{search_results}
 
 ---
 
@@ -1628,8 +1710,12 @@ Based on founder's funding preferences:
 ---
 
 OUTPUT LENGTH: 2 A4 pages (~800-1000 words). Be specific and actionable.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 - Focus on {geography} funding sources.
 
 Return VALID JSON matching the schema with funding options analysis, round planning, and specific investor recommendations.
@@ -1652,7 +1738,7 @@ Return VALID JSON matching the schema with funding options analysis, round plann
     ],
     "investor_landscape": {{
         "investor_types": ["Angels"],
-        "vcs": ["VC 1", "VC 2"],
+        "VCs": ["VC 1", "VC 2"],
         "angel_networks": ["Network 1"]
     }},
     "funding_timeline": {{
@@ -1667,8 +1753,11 @@ Return VALID JSON matching the schema with funding options analysis, round plann
         "comparable_companies": ["Startup 1", "Startup 2"],
         "equity_guidance": "10-20%"
     }},
-    "fundraising_process": ["Step 1", "Step 2"]
+    "fundraising_process": [
+        {{"step_name": "Step Name", "duration": "Duration", "key_activities": "Activities"}}
+    ]
 }}"""
+)
 
 
 # ============================================
@@ -1814,7 +1903,16 @@ OUTPUT GUIDELINES:
 - **Be Realistic**: Don't promise the moon.
 - **Use Data**: Leverage the research provided.
 
-Return VALID JSON matching the `StrategicDirective` schema.
+Return VALID JSON ONLY — no markdown, no explanations. Use EXACTLY these field names:
+{{
+    "target_customer_segment": "Specific ICP definition (e.g. 'Dental practices in Germany with 3-10 employees')",
+    "pricing_strategy": "Definitive pricing model as a string (e.g. '€49/month per seat, annual contract')",
+    "core_value_proposition": "The one-sentence value prop that beats everyone else",
+    "key_strategic_constraints": ["Constraint 1 (what we are NOT doing)", "Constraint 2", "Constraint 3"],
+    "differentiation_strategy": "How we beat the incumbent in one sentence",
+    "year_1_goals": "Specific Year 1 targets as a string (e.g., '100 paying customers, €100k ARR, 5 enterprise pilots')",
+    "primary_metric_goal": "The single north star metric target (e.g., '10k MAUs', '€100k ARR')"
+}}
 """)
 
 
@@ -1822,7 +1920,8 @@ Return VALID JSON matching the `StrategicDirective` schema.
 # EXECUTIVE SUMMARY PROMPT
 # ============================================
 
-EXECUTIVE_SUMMARY_PROMPT = ChatPromptTemplate.from_template("""
+EXECUTIVE_SUMMARY_PROMPT = ChatPromptTemplate.from_template(
+    """
 You are a Managing Partner at a top-tier VC firm in {geography} preparing an investment committee memo.
 Synthesize all analysis into a balanced, actionable executive summary.
 
@@ -1861,8 +1960,12 @@ QUALITY GUIDELINES:
 - Focus on {geography} market context
 
 OUTPUT LENGTH: ~1500 words. Be concise but comprehensive.
-""" + PDF_COMPATIBILITY_NOTE + """
-""" + CURRENCY_FORMAT_INSTRUCTIONS + """
+"""
+    + PDF_COMPATIBILITY_NOTE
+    + """
+"""
+    + CURRENCY_FORMAT_INSTRUCTIONS
+    + """
 - **JSON FORMAT**: Strictly valid JSON. NO trailing commas in lists or objects. Use double quotes.
 
 Return VALID JSON ONLY:
@@ -1878,7 +1981,8 @@ Return VALID JSON ONLY:
         "immediate_action_items": ["Action 1", "Action 2", "Action 3"]
     }}
 }}
-""")
+"""
+)
 
 EXEC_SUMMARY_MODULE_PROMPT = ChatPromptTemplate.from_template("""
 You are a concise business analyst.

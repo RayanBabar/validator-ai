@@ -5,11 +5,45 @@ Ensures highest quality results by validating outputs before returning to user.
 """
 
 import logging
+import json
 from typing import Dict, Any, List, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+# ===========================================
+# PYDANTIC SCHEMAS FOR STRUCTURED OUTPUT
+# ===========================================
+
+class QualityCheckResult(BaseModel):
+    """Schema for quality verification results."""
+    quality_score: float = Field(description="Quality score from 1-10")
+    issues: List[str] = Field(default_factory=list, description="List of identified issues")
+    suggestions: List[str] = Field(default_factory=list, description="List of improvement suggestions")
+    pass_: bool = Field(alias="pass", description="Whether quality check passed")
+
+    class Config:
+        populate_by_name = True
+
+
+class Inconsistency(BaseModel):
+    """Single inconsistency between modules."""
+    modules: List[str] = Field(description="List of module names involved")
+    issue: str = Field(description="Description of the inconsistency")
+
+
+class ConsistencyCheckResult(BaseModel):
+    """Schema for cross-module consistency check results."""
+    consistency_score: float = Field(description="Consistency score from 1-10")
+    inconsistencies: List[Inconsistency] = Field(default_factory=list, description="List of inconsistencies found")
+    recommendations: List[str] = Field(default_factory=list, description="List of recommendations")
+    pass_: bool = Field(alias="pass", description="Whether consistency check passed")
+
+    class Config:
+        populate_by_name = True
 
 
 # ===========================================
@@ -76,34 +110,91 @@ Score 7+ passes. Flag ONLY major inconsistencies that would actively confuse an 
 """)
 
 
-INCONSISTENCY_FIX_PROMPT = ChatPromptTemplate.from_template("""
-You are a startup validation expert closing inconsistencies in a report.
-We found an issue between modules: {modules}
-Issue: {issue}
+STRICT_SCHEMA_FIX_PROMPT = ChatPromptTemplate.from_template("""
+You are a data consistency engineer fixing validation report data.
+Your task: Resolve an inconsistency while PRESERVING the exact JSON structure.
 
-STARTUP IDEA: {description}
+**CRITICAL CONSTRAINTS:**
+1. Return VALID JSON that validates against the schema below
+2. NEVER add new fields
+3. NEVER remove existing fields
+4. NEVER change data types
+5. ONLY modify values causing the inconsistency
+6. Preserve ALL nested structures exactly
 
-MODULE 1 ({name1}):
-{content1}
+**JSON Schema (MUST follow exactly):**
+```json
+{json_schema}
+```
 
-MODULE 2 ({name2}):
-{content2}
+**Original Data (Current State):**
+```json
+{original_data}
+```
 
-DECISION:
-Which module needs to change to resolve this? 
-Usage Rules:
-- Market Analysis is usually the "source of truth" for market size. Financials should adapt.
-- Technical Requirements is truth for complexity. Roadmap should adapt.
-- Customer Segments is truth for audience. GTM should adapt.
+**Issue to Resolve:**
+- Description: {issue_description}
+- Conflicting Module: {other_module}
+- Other Module's Data: {other_value}
 
-TASK:
-Rewrite the data for the module that needs fixing. Ensure it is consistent with the other module.
-Return valid JSON with:
+**Resolution Strategy:**
+- Primary source of truth: {primary_source}
+- Target field to modify: Look for fields mentioned in the issue
+
+Return ONLY valid JSON matching the schema exactly. No markdown, no explanations.
+""")
+
+SURGICAL_FIELD_FIX_PROMPT = ChatPromptTemplate.from_template("""
+Schema-level fix failed. Apply surgical field-level fix.
+
+**Target:** {field_path}
+**Current Value:** {current_value}
+**Should Align With:** {reference_value}
+**Issue:** {issue_description}
+
+**Task:**
+Return the corrected value for the specific field path.
+
+Return JSON:
 {{
-    "target_module": "{name1}" or "{name2}",
-    "fixed_content": {{ ... same structure as original ... }},
-    "reasoning": "Why I chose to fix this module and what I changed"
+    "field_path": "exact.path.to.field",
+    "new_value": <corrected_value_of_same_type>
 }}
+""")
+
+
+AUTHORITY_AWARE_FIX_PROMPT = ChatPromptTemplate.from_template("""
+You are fixing a consistency issue between startup analysis modules.
+You MUST respect module authority rules when making changes.
+
+**AUTHORITY RULES:**
+{authority_context}
+
+**CONFLICT TO RESOLVE:**
+{issue_description}
+
+**Source of Truth Module ({source_module}):**
+```json
+{source_data}
+```
+
+**Module to Fix ({target_module}):**
+```json
+{target_data}
+```
+
+**Task:**
+1. Identify which fields in {target_module} conflict with {source_module}
+2. ONLY modify fields that are allowed to change (see authority rules)
+3. Preserve ALL other fields exactly as they are
+4. Ensure the modified values align with {source_module}
+
+**Important:**
+- Do NOT change fields where {source_module} is the authority
+- Maintain exact JSON structure and types
+- Only update values to be consistent with {source_module}
+
+Return ONLY valid JSON matching the target module's schema.
 """)
 
 
@@ -131,18 +222,19 @@ async def verify_output_quality(
         Quality check results with score, issues, and pass/fail
     """
     try:
-        result = await LLMService.invoke(
+        result = await LLMService.invoke_structured(
+            QualityCheckResult,
             SELF_VERIFICATION_PROMPT,
             {
                 "output_type": output_type,
                 "input_context": input_context,
                 "generated_output": str(generated_output),
             },
+            use_complex=False,  # Use fast LLM for quality checks
             provider="auto",
-            parse_json=True
         )
 
-        quality_score = float(result.get("quality_score", 5))
+        quality_score = result.quality_score
         passed = quality_score >= min_score
 
         logger.info(
@@ -151,8 +243,8 @@ async def verify_output_quality(
 
         return {
             "quality_score": quality_score,
-            "issues": result.get("issues", []),
-            "suggestions": result.get("suggestions", []),
+            "issues": result.issues,
+            "suggestions": result.suggestions,
             "pass": passed,
         }
 
@@ -172,8 +264,12 @@ async def verify_output_quality(
 from src.agents.base import LLMService
 from src.config.prompts import CONSISTENCY_CHECK_MODULE_PROMPT
 
+
 async def verify_cross_module_consistency(
-    description: str, modules: Dict[str, Any], min_score: float = 7.0
+    description: str,
+    modules: Dict[str, Any],
+    min_score: float = 7.0,
+    summary_cache: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
     Verify consistency across multiple modules.
@@ -182,13 +278,18 @@ async def verify_cross_module_consistency(
         description: Original startup description
         modules: Dictionary of module name -> module data
         min_score: Minimum acceptable consistency score
+        summary_cache: Optional cache of previously generated summaries.
+                       Keys are module names, values are summary strings.
+                       Modules in cache skip re-summarization.
 
     Returns:
-        Consistency check results
+        Consistency check results with updated 'summary_cache' key
     """
-    # Format module data for prompt (summarize each module in PARALLEL)
     import asyncio
-    
+
+    if summary_cache is None:
+        summary_cache = {}
+
     async def summarize_for_check(name: str, data):
         """Summarize single module for consistency check."""
         if not data:
@@ -199,35 +300,61 @@ async def verify_cross_module_consistency(
                 CONSISTENCY_CHECK_MODULE_PROMPT,
                 {"module_name": name, "module_data": data_str},
                 use_complex=False,
-                parse_json=False
+                parse_json=False,
             )
-            return f"**{name}**:\n{summary}"
+            formatted = f"**{name}**:\n{summary}"
+            return name, formatted
         except Exception as e:
             logger.warning(f"Failed to summarize {name} for consistency check: {e}")
-            return f"**{name}**: {str(data)[:2000]}... (truncated)"
-    
-    # Execute all summarizations in parallel
-    tasks = [summarize_for_check(name, data) for name, data in modules.items()]
-    results = await asyncio.gather(*tasks)
-    
-    # Filter and join
-    module_summaries = [r for r in results if r is not None]
+            formatted = f"**{name}**: {str(data)[:2000]}... (truncated)"
+            return name, formatted
+
+    # Only summarize modules not already in cache
+    modules_to_summarize = {
+        name: data for name, data in modules.items()
+        if name not in summary_cache
+    }
+    cached_count = len(modules) - len(modules_to_summarize)
+    if cached_count > 0:
+        logger.info(
+            f"Reusing cached summaries for {cached_count} modules, "
+            f"summarizing {len(modules_to_summarize)} new/changed modules"
+        )
+
+    # Execute only needed summarizations in parallel
+    if modules_to_summarize:
+        tasks = [
+            summarize_for_check(name, data)
+            for name, data in modules_to_summarize.items()
+        ]
+        results = await asyncio.gather(*tasks)
+
+        # Update cache with new summaries
+        for result in results:
+            if result is not None:
+                name, formatted = result
+                summary_cache[name] = formatted
+
+    # Build full module data from cache (in original module order)
+    module_summaries = [
+        summary_cache[name] for name in modules if name in summary_cache
+    ]
 
     module_data = "\n\n".join(module_summaries)
 
     try:
-        # Use LLMService for the consistency check itself
-        result = await LLMService.invoke(
+        result = await LLMService.invoke_structured(
+            ConsistencyCheckResult,
             CROSS_MODULE_PROMPT,
             {
                 "description": description,
-                "module_data": module_data,         # No arbitrary limit on summarized data
+                "module_data": module_data,
             },
-            use_complex=False,  # Fast model is sufficient for consistency check
-            parse_json=True
+            use_complex=False,
+            provider="auto",
         )
 
-        consistency_score = float(result.get("consistency_score", 5))
+        consistency_score = result.consistency_score
         passed = consistency_score >= min_score
 
         logger.info(
@@ -236,9 +363,10 @@ async def verify_cross_module_consistency(
 
         return {
             "consistency_score": consistency_score,
-            "inconsistencies": result.get("inconsistencies", []),
-            "recommendations": result.get("recommendations", []),
+            "inconsistencies": [{"modules": inc.modules, "issue": inc.issue} for inc in result.inconsistencies],
+            "recommendations": result.recommendations,
             "pass": passed,
+            "summary_cache": summary_cache,
         }
 
     except Exception as e:
@@ -249,6 +377,7 @@ async def verify_cross_module_consistency(
             "recommendations": [],
             "pass": True,
             "error": str(e),
+            "summary_cache": summary_cache,
         }
 
 
@@ -336,7 +465,11 @@ async def attempt_fix_for_inconsistency(
     description: str, inconsistency: Dict[str, Any], all_modules: Dict[str, Any]
 ) -> Optional[Dict[str, Any]]:
     """
-    Attempt to fix a cross-module inconsistency by rewriting one module.
+    Attempt to fix a cross-module inconsistency with strict schema validation.
+
+    Uses two-phase approach:
+    1. Strict schema fix - Validates against Pydantic model
+    2. Surgical field fix - Targets specific field if schema fix fails
 
     Args:
         description: Startup description
@@ -344,58 +477,180 @@ async def attempt_fix_for_inconsistency(
         all_modules: Dictionary of all module data (key -> content)
 
     Returns:
-        Dict with "target_module" (key) and "fixed_content" (value), or None if failed
+        Dict with fix results including validation status, or None if failed
     """
-    try:
-        involved_modules = inconsistency.get("modules", [])
-        issue = inconsistency.get("issue", "Unknown issue")
+    from src.agents.schema_registry import (
+        get_schema_for_module,
+        validate_module_data,
+        resolve_module_name,
+        get_nested_value,
+        set_nested_value,
+        extract_field_path_from_issue,
+        determine_fix_target,
+    )
 
-        if len(involved_modules) < 2:
+    try:
+        modules = inconsistency.get("modules", [])
+        issue = inconsistency.get("issue", "")
+
+        if len(modules) < 2:
+            logger.warning("Need at least 2 modules to fix inconsistency")
             return None
 
-        name1 = involved_modules[0]
-        name2 = involved_modules[1]
+        name1, name2 = modules[0], modules[1]
 
-        # Build case-insensitive lookup with aliases
-        # LLM may return "customer", "Customer", "gtm", "GTM" etc.
-        module_lookup = {k.lower(): v for k, v in all_modules.items()}
-        # Add aliases for common LLM outputs
-        if "bmc" in module_lookup:
-            module_lookup["customer"] = module_lookup["bmc"]
-            module_lookup["customer segments"] = module_lookup["bmc"]
-        
-        content1 = module_lookup.get(name1.lower())
-        content2 = module_lookup.get(name2.lower())
+        # Resolve to state keys
+        state_key1, subsection1 = resolve_module_name(name1)
+        state_key2, subsection2 = resolve_module_name(name2)
+
+        if not state_key1 or not state_key2:
+            logger.error(f"Cannot resolve module names: {name1}, {name2}")
+            return None
+
+        # Lookup using resolved state keys (e.g. "market_data" → "market")
+        # The all_modules dict uses simple names like "market", "competitor"
+        simple_key1 = state_key1.replace("_data", "")
+        simple_key2 = state_key2.replace("_data", "")
+        content1 = all_modules.get(simple_key1) or all_modules.get(name1.lower())
+        content2 = all_modules.get(simple_key2) or all_modules.get(name2.lower())
 
         if not content1 or not content2:
-            logger.warning(f"Could not find module content for {name1} or {name2}")
+            logger.error(
+                f"Missing content for: {name1} (tried '{simple_key1}') "
+                f"or {name2} (tried '{simple_key2}'). "
+                f"Available keys: {list(all_modules.keys())}"
+            )
             return None
 
-        logger.info(f"Attempting to fix inconsistency between {name1} and {name2}")
+        # Determine which module to fix using authority rules
+        target_name, authority_reason = determine_fix_target(name1, name2, issue)
 
-        result = await LLMService.invoke(
-            INCONSISTENCY_FIX_PROMPT,
-            {
-                "modules": f"{name1} and {name2}",
-                "issue": issue,
-                "description": description,
-                "name1": name1,
-                "content1": str(content1),
-                "name2": name2,
-                "content2": str(content2),
-            },
-            provider="openai",  # Claude Sonnet for fix writing
-            parse_json=True
-        )
+        # Set source and target based on authority
+        if target_name == state_key2:
+            source_name = name1
+            source_state_key = state_key1
+            target_state_key = state_key2
+            target_content = content2
+            source_content = content1
+            subsection2_used = subsection2
+        else:
+            source_name = name2
+            source_state_key = state_key2
+            target_state_key = state_key1
+            target_content = content1
+            source_content = content2
+            subsection2_used = subsection1
 
-        target_mod = result.get("target_module")
-        fixed_content = result.get("fixed_content")
+        logger.info(f"Fixing inconsistency: {name1} ↔ {name2} | Issue: {issue[:50]}...")
+        logger.info(f"Authority decision: Fix {target_name} ({authority_reason})")
 
-        if target_mod and fixed_content:
-            logger.info(f"Fix proposed for {target_mod}: {result.get('reasoning')}")
-            return {"target_module": target_mod, "fixed_content": fixed_content}
+        # === PHASE 1: Strict Schema Fix ===
+        schema = get_schema_for_module(target_state_key)
+
+        if schema:
+            try:
+                result = await LLMService.invoke(
+                    STRICT_SCHEMA_FIX_PROMPT,
+                    {
+                        "json_schema": json.dumps(schema, indent=2),
+                        "original_data": json.dumps(target_content),
+                        "issue_description": issue,
+                        "other_module": source_name,
+                        "other_value": str(source_content)[:1000],
+                        "primary_source": source_name,
+                        "target_field": "inconsistent_field",
+                    },
+                    provider="claude",
+                    parse_json=True,
+                )
+
+                fixed_content = result.get("fixed_content") or result
+
+                # Strict validation
+                is_valid, error = validate_module_data(target_state_key, fixed_content)
+
+                if is_valid:
+                    logger.info(f"✓ Strict fix successful for {target_name}")
+                    return {
+                        "target_module": target_name,
+                        "target_state_key": target_state_key,
+                        "fixed_content": fixed_content,
+                        "fix_type": "strict",
+                        "subsection": subsection2_used,
+                        "field_path": None,
+                        "validation_error": None,
+                    }
+                else:
+                    logger.warning(f"Strict fix validation failed: {error}")
+
+            except Exception as e:
+                logger.error(f"Strict fix error: {e}")
+
+        # === PHASE 2: Surgical Field Fix ===
+        logger.info(f"Attempting surgical fix for {target_name}")
+
+        try:
+            # Extract likely field path
+            field_path = extract_field_path_from_issue(issue, target_content)
+
+            if not field_path:
+                logger.error("Could not identify field path for surgical fix")
+                return None
+
+            current_val = get_nested_value(target_content, field_path)
+
+            result = await LLMService.invoke(
+                SURGICAL_FIELD_FIX_PROMPT,
+                {
+                    "field_path": field_path,
+                    "current_value": json.dumps(current_val),
+                    "reference_value": str(source_content)[:500],
+                    "issue_description": issue,
+                },
+                provider="claude",
+                parse_json=True,
+            )
+
+            new_field_path = result.get("field_path", field_path)
+            new_value = result.get("new_value")
+
+            if new_value is not None:
+                # Apply patch
+                patched = set_nested_value(target_content, new_field_path, new_value)
+
+                # Validate
+                is_valid, error = validate_module_data(target_state_key, patched)
+
+                if is_valid:
+                    logger.info(
+                        f"✓ Surgical fix successful: {target_name}.{new_field_path}"
+                    )
+                    return {
+                        "target_module": target_name,
+                        "target_state_key": target_state_key,
+                        "fixed_content": patched,
+                        "fix_type": "surgical",
+                        "subsection": subsection2,
+                        "field_path": new_field_path,
+                        "validation_error": None,
+                    }
+                else:
+                    logger.error(f"Surgical fix validation failed: {error}")
+
+        except Exception as e:
+            logger.error(f"Surgical fix error: {e}")
+
+        logger.error(f"✗ All fix attempts failed for {target_name}")
+        return {
+            "target_module": target_name,
+            "target_state_key": target_state_key,
+            "fixed_content": None,
+            "fix_type": "failed",
+            "subsection": subsection2,
+            "field_path": None,
+            "validation_error": "Both strict and surgical fixes failed validation",
+        }
 
     except Exception as e:
-        logger.warning(f"Auto-fix failed: {e}")
-
-    return None
+        logger.error(f"Smart fix failed with exception: {e}")
+        return None

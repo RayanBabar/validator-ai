@@ -41,23 +41,35 @@ async def conduct_research(state: ValidationState):
     
     # Run concurrently
     # Return exceptions=True to prevent one failure from crashing the other
-    results = await asyncio.gather(
-        synthesize_context(state),
-        evaluate_interview_quality(state),
-        return_exceptions=True
-    )
     
-    enriched = results[0]
-    quality_scores = results[1]
-    
-    # Handle exceptions
-    if isinstance(enriched, Exception):
-        logger.error(f"Synthesis failed in parallel execution: {enriched}")
-        enriched = {} # Fallback
-    
-    if isinstance(quality_scores, Exception):
-        logger.error(f"Quality evaluation failed in parallel execution: {quality_scores}")
-        quality_scores = {"clarity_score": 5.0, "answer_quality_score": 5.0} # Fallback
+    # OPTIMIZATION: Check if context already exists (e.g. re-running for upgrade)
+    # If so, skip the expensive synthesis step
+    if state.get("enriched_context") and state.get("clarity_score"):
+        logger.info("Research node: Enriched context already exists, skipping synthesis.")
+        enriched = state["enriched_context"]
+        quality_scores = {
+            "clarity_score": state.get("clarity_score", 5.0),
+            "answer_quality_score": state.get("answer_quality_score", 5.0),
+            "dimension_quality": state.get("dimension_quality", {})
+        }
+    else:
+        results = await asyncio.gather(
+            synthesize_context(state),
+            evaluate_interview_quality(state),
+            return_exceptions=True
+        )
+        
+        enriched = results[0]
+        quality_scores = results[1]
+        
+        # Handle exceptions
+        if isinstance(enriched, Exception):
+            logger.error(f"Synthesis failed in parallel execution: {enriched}")
+            enriched = {} # Fallback
+        
+        if isinstance(quality_scores, Exception):
+            logger.error(f"Quality evaluation failed in parallel execution: {quality_scores}")
+            quality_scores = {"clarity_score": 5.0, "answer_quality_score": 5.0} # Fallback
 
     # 2. Extract context information from synthesis result (if available)
     context_extraction = {}

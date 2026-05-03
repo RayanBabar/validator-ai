@@ -128,19 +128,8 @@ export async function submitAnswer(threadId: string, answer: string, currentQues
 }
 
 export async function getReport(threadId: string, tier: string = 'free') {
-  // First check Supabase for persisted report (from webhook)
-  const supabaseReport = await getReportByThreadId(threadId);
-  if (supabaseReport && supabaseReport.report_data) {
-    return {
-      thread_id: threadId,
-      tier: supabaseReport.tier,
-      report_data: supabaseReport.report_data,
-    };
-  }
-
   if (USE_MOCK) {
     await new Promise(r => setTimeout(r, 800));
-    // Mock data is no longer supported for reports to ensure backend consistency
     return {
       thread_id: threadId,
       tier: tier,
@@ -148,11 +137,11 @@ export async function getReport(threadId: string, tier: string = 'free') {
         title: "Mock Report (Backend Needed)", 
         go_no_go_score: 50,
         executive_summary: { problem_summary: "Enable backend to see real analysis." }
-      }
+      },
+      available_tiers: ['free', 'basic']
     };
   }
 
-  // Pass tier as query param to backend so it knows which report to return
   const res = await fetch(`${API_BASE_URL}/report/${threadId}?tier=${tier}`, {
     headers: await getHeaders(),
   });

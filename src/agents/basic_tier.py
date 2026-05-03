@@ -201,9 +201,11 @@ You MUST align your analysis with these decided constraints:
     # Send webhook
     thread_id = state.get("thread_id")
     if thread_id:
+        from src.utils.supabase import update_session_status
         await send_report_webhook(
             thread_id=thread_id, report_score=score, report_metadata=report.model_dump()
         )
+        await update_session_status(thread_id, "report_ready")
 
     return {
         "final_report": report.model_dump(),

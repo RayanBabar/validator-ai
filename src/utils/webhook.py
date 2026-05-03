@@ -28,23 +28,32 @@ async def init_thread_supabase(thread_id: str) -> bool:
         logger.warning("Supabase credentials missing. Skipping thread initialization.")
         return False
 
-    supabase_url = f"{settings.SUPABASE_URL}/rest/v1/threads"
+    supabase_url = f"{settings.SUPABASE_URL}/rest/v1/validation_sessions"
     headers = {
         "apikey": settings.SUPABASE_ANON_KEY,
         "Authorization": f"Bearer {settings.SUPABASE_ANON_KEY}",
         "Content-Type": "application/json",
         "Prefer": "return=minimal"
     }
-    payload = {"id": thread_id}
+    # Only try to create if it doesn't exist, though it should always exist
+    payload = {"thread_id": thread_id}
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
+            # First check if it exists
+            check_url = f"{supabase_url}?thread_id=eq.{thread_id}"
+            check_res = await client.get(check_url, headers=headers)
+            if check_res.status_code == 200 and len(check_res.json()) > 0:
+                logger.info(f"Thread {thread_id} already exists in validation_sessions")
+                return True
+
+            # If not, try to create it (though this shouldn't happen in normal flow)
             response = await client.post(supabase_url, json=payload, headers=headers)
             if response.status_code in (200, 201, 204):
-                logger.info(f"Thread {thread_id} initialized in Supabase")
+                logger.info(f"Thread {thread_id} initialized in validation_sessions")
                 return True
             else:
-                logger.error(f"Failed to initialize thread {thread_id} in Supabase: {response.status_code} {response.text}")
+                logger.error(f"Failed to initialize thread {thread_id} in validation_sessions: {response.status_code} {response.text}")
                 return False
     except Exception as e:
         logger.error(f"Error initializing thread in Supabase: {e}")
@@ -80,6 +89,7 @@ async def send_report_webhook(
     
     payload = {
         "report_score": str(report_score),
+        "tier": report_metadata.get("tier", "free"),
         "report_metadata": json.dumps(report_metadata),
     }
     

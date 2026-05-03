@@ -59,3 +59,49 @@ async def update_session_status(thread_id: str, status: str) -> bool:
     except Exception as e:
         logger.error(f"Error updating session status for {thread_id}: {e}")
         return False
+
+
+async def update_session_tier(thread_id: str, tier: str) -> bool:
+    """Update session tier in validation_sessions table."""
+    try:
+        async with await get_supabase_client() as client:
+            response = await client.patch(
+                f"/rest/v1/validation_sessions?thread_id=eq.{thread_id}",
+                json={"tier": tier}
+            )
+            return response.status_code in (200, 204)
+    except Exception as e:
+        logger.error(f"Error updating session tier for {thread_id}: {e}")
+        return False
+
+
+async def get_report_from_db(thread_id: str, tier: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Fetch report data from reports table, optionally filtered by tier."""
+    try:
+        url = f"/rest/v1/reports?thread_id=eq.{thread_id}"
+        if tier:
+            url += f"&tier=eq.{tier}"
+        url += "&select=*"
+        
+        async with await get_supabase_client() as client:
+            response = await client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                return data[0] if data else None
+            return None
+    except Exception as e:
+        logger.error(f"Error fetching report from DB for {thread_id}: {e}")
+        return None
+
+
+async def get_all_reports_for_thread(thread_id: str) -> list[Dict[str, Any]]:
+    """Fetch all reports for a given thread_id."""
+    try:
+        async with await get_supabase_client() as client:
+            response = await client.get(f"/rest/v1/reports?thread_id=eq.{thread_id}&select=*")
+            if response.status_code == 200:
+                return response.json()
+            return []
+    except Exception as e:
+        logger.error(f"Error fetching all reports for {thread_id}: {e}")
+        return []

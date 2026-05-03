@@ -48,10 +48,42 @@ export default function Processing() {
     return () => clearInterval(interval);
   }, []);
 
+  // Immediate check on mount — redirect if report already exists
+  useEffect(() => {
+    if (!threadId) return;
+    (async () => {
+      try {
+        // Check session status first
+        const { data: session } = await supabase
+          .from('validation_sessions')
+          .select('status, tier')
+          .eq('thread_id', threadId)
+          .single();
+
+        if (session?.status === 'waiting_for_admin_approval') {
+          setWaitingForAdmin(true);
+          return;
+        }
+        if (session?.status === 'report_ready' || session?.status?.endsWith('_report_ready')) {
+          handleReportReady(session.tier || tier);
+          return;
+        }
+
+        // Check reports table for current tier
+        const existingReport = await getReportByThreadId(threadId, tier);
+        if (existingReport) {
+          handleReportReady(existingReport.tier);
+        }
+      } catch (err) {
+        console.log('Initial check error:', err);
+      }
+    })();
+  }, [threadId, tier, handleReportReady]);
+
   useEffect(() => {
     if (!threadId) return;
 
-    // Real mode: Subscribe to Supabase realtime updates
+    // Subscribe to Supabase realtime updates
     const channel = supabase
       .channel(`session-${threadId}`)
       .on(
@@ -67,7 +99,7 @@ export default function Processing() {
           console.log('Session status update:', newStatus);
           if (newStatus === 'waiting_for_admin_approval') {
             setWaitingForAdmin(true);
-          } else if (newStatus === 'report_ready' || newStatus === 'free_report_ready') {
+          } else if (newStatus === 'report_ready' || newStatus.endsWith('_report_ready')) {
             handleReportReady(payload.new.tier || tier);
           }
         }
@@ -79,7 +111,7 @@ export default function Processing() {
       handleReportReady(payload.tier);
     });
 
-    // Also poll every 5 seconds for status updates
+    // Poll every 5 seconds as fallback
     const pollInterval = setInterval(async () => {
       try {
         const { data: session } = await supabase
@@ -91,14 +123,15 @@ export default function Processing() {
         if (session) {
           if (session.status === 'waiting_for_admin_approval') {
             setWaitingForAdmin(true);
-          } else if (session.status === 'report_ready' || session.status === 'free_report_ready') {
+          } else if (session.status === 'report_ready' || session.status.endsWith('_report_ready')) {
             handleReportReady(session.tier || tier);
             clearInterval(pollInterval);
+            return;
           }
         }
 
-        // Check if report actually exists yet
-        const supabaseReport = await getReportByThreadId(threadId);
+        // Also check reports table directly for the current tier
+        const supabaseReport = await getReportByThreadId(threadId, tier);
         if (supabaseReport) {
           handleReportReady(supabaseReport.tier);
           clearInterval(pollInterval);

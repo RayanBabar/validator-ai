@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Star, ArrowRight, CreditCard, X, Loader2, Shield, Clock } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { FloatingOrbs } from '@/components/FloatingOrbs';
 import { Footer } from '@/components/Footer';
-import { upgradeReport } from '@/lib/api';
+import { upgradeReport, getReport } from '@/lib/api';
 
 const tiers = [
   {
@@ -56,6 +56,30 @@ export default function Upgrade() {
   const { threadId } = useParams<{ threadId: string }>();
   const navigate = useNavigate();
   const [upgrading, setUpgrading] = useState(false);
+  const [currentTier, setCurrentTier] = useState<string>('free');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadSession() {
+      if (!threadId) return;
+      try {
+        const data = await getReport(threadId);
+        setCurrentTier(data.tier || 'free');
+      } catch (err) {
+        console.error('Failed to load session tier', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadSession();
+  }, [threadId]);
+
+  const tierPriority: Record<string, number> = {
+    'free': 0,
+    'basic': 1,
+    'standard': 2,
+    'premium': 3
+  };
 
   const handleUpgrade = async (tier: typeof tiers[0]) => {
     if (!threadId) return;
@@ -92,49 +116,61 @@ export default function Upgrade() {
           </motion.div>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {tiers.map((tier, i) => (
-              <motion.div
-                key={tier.id}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className={`relative glass rounded-2xl p-6 transition-all hover:scale-[1.02] ${
-                  tier.recommended ? 'ring-2 ring-primary glow-primary' : ''
-                }`}
-              >
-                {tier.recommended && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-semibold">
-                    <Star className="w-3 h-3" />
-                    Recommended
-                  </div>
-                )}
-
-                <h3 className="text-xl font-bold mb-3">{tier.name}</h3>
-                <p className="text-xs text-muted-foreground mb-5 italic">{tier.bestFor}</p>
-
-                <ul className="space-y-2.5 mb-6">
-                  {tier.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm">
-                      <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                      <span className="text-muted-foreground">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <button
-                  onClick={() => handleUpgrade(tier)}
-                  disabled={upgrading}
-                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold transition-all group ${
-                    tier.recommended
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                      : 'glass hover:bg-secondary/50'
-                  }`}
+            {loading ? (
+              <div className="col-span-3 flex justify-center py-20">
+                <Loader2 className="w-12 h-12 text-primary animate-spin opacity-50" />
+              </div>
+            ) : tiers.map((tier, i) => {
+              const isCurrentOrPast = tierPriority[tier.id] <= tierPriority[currentTier];
+              
+              return (
+                <motion.div
+                  key={tier.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className={`relative glass rounded-2xl p-6 transition-all hover:scale-[1.02] ${
+                    tier.recommended ? 'ring-2 ring-primary glow-primary' : ''
+                  } ${isCurrentOrPast ? 'opacity-70 grayscale-[0.5]' : ''}`}
                 >
-                  {upgrading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Request {tier.name}</>}
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </motion.div>
-            ))}
+                  {tier.recommended && !isCurrentOrPast && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+                      <Star className="w-3 h-3" />
+                      Recommended
+                    </div>
+                  )}
+
+                  <h3 className="text-xl font-bold mb-3">{tier.name}</h3>
+                  <p className="text-xs text-muted-foreground mb-5 italic">{tier.bestFor}</p>
+
+                  <ul className="space-y-2.5 mb-6">
+                    {tier.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-sm">
+                        <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                        <span className="text-muted-foreground">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    onClick={() => handleUpgrade(tier)}
+                    disabled={upgrading || isCurrentOrPast}
+                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold transition-all group ${
+                      isCurrentOrPast
+                        ? 'bg-secondary/50 text-muted-foreground cursor-not-allowed'
+                        : tier.recommended
+                          ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                          : 'glass hover:bg-white/10'
+                    }`}
+                  >
+                    {upgrading ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                     isCurrentOrPast ? (tier.id === currentTier ? 'Current Tier' : 'Unlocked') : 
+                     <>Request {tier.name}</>}
+                    {!isCurrentOrPast && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
+                  </button>
+                </motion.div>
+              );
+            })}
           </div>
 
           {/* Academic Trust Elements */}

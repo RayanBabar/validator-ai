@@ -485,39 +485,97 @@ function TechnicalRoadmapModule({ data }: { data: any }) {
 
   return (
     <ModuleSection title="Technical Roadmap" icon={Layers}>
-      {/* MVP Timeline */}
-      {data.mvp_development && (
-        <div className="mb-6">
-          <h4 className="text-sm font-medium mb-3">MVP Development</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <MetricCard label="Timeline" value={data.mvp_development.timeline || 'N/A'} />
-            <MetricCard label="Team Size" value={data.mvp_development.team_size || 'N/A'} />
-            <MetricCard label="Budget" value={data.mvp_development.estimated_budget || 'N/A'} />
-            <MetricCard label="Tech Stack" value={data.mvp_development.tech_stack || 'N/A'} />
-          </div>
 
-          {data.mvp_development.core_features && (
-            <div className="bg-secondary/30 rounded-xl p-4">
-              <h5 className="text-xs font-medium mb-2">Core Features</h5>
-              <BulletList items={data.mvp_development.core_features} />
-            </div>
+      {/* Technology Stack */}
+      {data.technology_stack && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium mb-3">Technology Stack</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {data.technology_stack.frontend && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">Frontend</p>
+                <BulletList items={Array.isArray(data.technology_stack.frontend) ? data.technology_stack.frontend : [data.technology_stack.frontend]} />
+              </div>
+            )}
+            {data.technology_stack.backend && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">Backend</p>
+                <BulletList items={Array.isArray(data.technology_stack.backend) ? data.technology_stack.backend : [data.technology_stack.backend]} />
+              </div>
+            )}
+            {data.technology_stack.database && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">Database</p>
+                <BulletList items={Array.isArray(data.technology_stack.database) ? data.technology_stack.database : [data.technology_stack.database]} />
+              </div>
+            )}
+            {data.technology_stack.infrastructure && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">Infrastructure</p>
+                <BulletList items={Array.isArray(data.technology_stack.infrastructure) ? data.technology_stack.infrastructure : [data.technology_stack.infrastructure]} />
+              </div>
+            )}
+            {data.technology_stack.third_party_services && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">3rd Party Services</p>
+                <BulletList items={Array.isArray(data.technology_stack.third_party_services) ? data.technology_stack.third_party_services : [data.technology_stack.third_party_services]} />
+              </div>
+            )}
+          </div>
+          {data.technology_stack.rationale && (
+            <p className="text-xs text-muted-foreground mt-3 italic">{data.technology_stack.rationale}</p>
           )}
         </div>
       )}
 
-      {/* Critical Milestones */}
-      {data.critical_milestones && (
+      {/* Development Timeline */}
+      {data.development_timeline && (
         <div className="mb-6">
-          <h4 className="text-sm font-medium mb-3">Critical Milestones</h4>
-          <div className="space-y-3">
-            {data.critical_milestones.map((milestone: any, i: number) => (
+          <h4 className="text-sm font-medium mb-3">Development Timeline</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {data.development_timeline.mvp_phase && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">MVP Phase</p>
+                <p className="text-xs text-muted-foreground">{data.development_timeline.mvp_phase.duration || data.development_timeline.mvp_phase}</p>
+              </div>
+            )}
+            {data.development_timeline.beta_phase && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">Beta Phase</p>
+                <p className="text-xs text-muted-foreground">{data.development_timeline.beta_phase.duration || data.development_timeline.beta_phase}</p>
+              </div>
+            )}
+            {data.development_timeline.launch_phase && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">Launch Phase</p>
+                <p className="text-xs text-muted-foreground">{data.development_timeline.launch_phase.duration || data.development_timeline.launch_phase}</p>
+              </div>
+            )}
+            {data.development_timeline.total_time_to_market && (
+              <div className="bg-primary/10 border border-primary/20 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">Total Time to Market</p>
+                <p className="text-sm font-bold">{data.development_timeline.total_time_to_market}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MVP Features */}
+      {(data.mvp_features || data.MVP_features) && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium mb-3">MVP Features</h4>
+          <div className="space-y-2">
+            {(data.mvp_features || data.MVP_features).map((feat: any, i: number) => (
               <div key={i} className="flex items-start gap-3 bg-secondary/30 rounded-lg p-3">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                <div className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center shrink-0">
                   <span className="text-xs font-bold text-primary">{i + 1}</span>
                 </div>
-                <div>
-                  <p className="font-medium text-sm">{milestone.milestone}</p>
-                  <p className="text-xs text-muted-foreground">{milestone.timeline} - {milestone.success_criteria}</p>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{feat.feature || feat.name || feat.title}</p>
+                  {feat.priority && <span className={`text-xs px-1.5 py-0.5 rounded ${feat.priority === 'Must Have' ? 'bg-red-500/20 text-red-400' : feat.priority === 'Should Have' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>{feat.priority}</span>}
+                  {feat.description && <p className="text-xs text-muted-foreground mt-1">{feat.description}</p>}
+                  {feat.effort && <p className="text-xs text-muted-foreground mt-0.5">Effort: {feat.effort} | Complexity: {feat.complexity}</p>}
                 </div>
               </div>
             ))}
@@ -525,16 +583,83 @@ function TechnicalRoadmapModule({ data }: { data: any }) {
         </div>
       )}
 
-      {/* Technical Risks */}
-      {data.technical_risks && (
+      {/* Team Composition */}
+      {data.team_composition && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium mb-3">Team Composition</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {data.team_composition.founding_team && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">Founding Team</p>
+                <BulletList items={Array.isArray(data.team_composition.founding_team) ? data.team_composition.founding_team : [data.team_composition.founding_team]} />
+              </div>
+            )}
+            {data.team_composition.early_hires && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">Early Hires</p>
+                <BulletList items={Array.isArray(data.team_composition.early_hires) ? data.team_composition.early_hires : [data.team_composition.early_hires]} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Infrastructure Costs */}
+      {data.infrastructure_costs && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium mb-3">Infrastructure Costs</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {data.infrastructure_costs.mvp_monthly_cost && <MetricCard label="MVP Monthly" value={data.infrastructure_costs.mvp_monthly_cost} />}
+            {data.infrastructure_costs.growth_monthly_cost && <MetricCard label="Growth Monthly" value={data.infrastructure_costs.growth_monthly_cost} />}
+            {data.infrastructure_costs.scale_monthly_cost && <MetricCard label="Scale Monthly" value={data.infrastructure_costs.scale_monthly_cost} />}
+          </div>
+        </div>
+      )}
+
+      {/* Scalability Plan */}
+      {data.scalability_plan && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium mb-3">Scalability Plan</h4>
+          {data.scalability_plan.current_capacity && (
+            <p className="text-xs text-muted-foreground mb-3">Current capacity: {data.scalability_plan.current_capacity}</p>
+          )}
+          {Array.isArray(data.scalability_plan.scaling_plan) && (
+            <div className="space-y-2">
+              {data.scalability_plan.scaling_plan.map((step: any, i: number) => (
+                <div key={i} className="flex items-start gap-3 bg-secondary/30 rounded-lg p-3">
+                  <div className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-primary">{i + 1}</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium">Trigger: {step.trigger}</p>
+                    <p className="text-xs text-muted-foreground">{step.action}</p>
+                    {step.estimated_effort && <p className="text-xs text-primary">Effort: {step.estimated_effort}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Security & Compliance */}
+      {Array.isArray(data.security_compliance) && data.security_compliance.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium mb-3">Technical Risks</h4>
-          <BulletList items={data.technical_risks} />
+          <h4 className="text-sm font-medium mb-3">Security & Compliance</h4>
+          <div className="space-y-2">
+            {data.security_compliance.map((req: any, i: number) => (
+              <div key={i} className="bg-secondary/30 rounded-lg p-3">
+                <p className="text-sm font-medium">{req.requirement}</p>
+                <p className="text-xs text-muted-foreground mt-1">{req.implementation}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </ModuleSection>
   );
 }
+
 
 // Risk Analysis Module
 function RiskAnalysisModule({ data }: { data: any }) {
@@ -865,13 +990,14 @@ const premiumSections = [
 
 export default function Report() {
   const { threadId } = useParams<{ threadId: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const tier = searchParams.get('tier') || 'free';
   const isPreview = searchParams.get('preview') === 'true';
 
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual');
   const [editedData, setEditedData] = useState<any>(null);
@@ -937,8 +1063,9 @@ export default function Report() {
         const data = await getReport(threadId || '', tier);
         setReport(data);
         setEditedData(data.report_data);
-      } catch {
-        console.error('Failed to load report');
+      } catch (err) {
+        console.error('Failed to load report', err);
+        setLoadError('The report is still being generated or could not be loaded. Please try refreshing the page in a moment.');
       } finally {
         setLoading(false);
       }
@@ -999,7 +1126,23 @@ export default function Report() {
     );
   }
 
-  if (!report) return null;
+  if (loadError || !report) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2">Report Not Ready Yet</h2>
+          <p className="text-muted-foreground mb-6">{loadError || 'Your report could not be loaded. It may still be processing.'}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const rd = isEditing && editMode === 'visual' ? editedData : report.report_data;
 
@@ -1113,6 +1256,39 @@ export default function Report() {
             </div>
           ) : (
             <>
+              {/* Report Version Switcher (Multi-tier History) */}
+              {report.available_tiers && report.available_tiers.length > 1 && (
+                <div className="flex flex-wrap items-center gap-2 mb-8 bg-secondary/20 p-2 rounded-xl border border-white/5">
+                  <span className="text-xs font-semibold text-muted-foreground px-3 uppercase tracking-wider">Report Versions:</span>
+                  {['free', 'basic', 'standard', 'premium'].map(t => {
+                    if (!report.available_tiers.includes(t)) return null;
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => {
+                          setLoading(true);
+                          getReport(threadId!, t)
+                            .then(data => {
+                              setReport(data);
+                              setEditedData(data.report_data);
+                              setSearchParams({ tier: t });
+                            })
+                            .catch(err => console.error(err))
+                            .finally(() => setLoading(false));
+                        }}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all uppercase tracking-wide ${
+                          report.tier === t 
+                            ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105' 
+                            : 'glass hover:bg-white/10 text-muted-foreground'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Header */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -1132,7 +1308,7 @@ export default function Report() {
                     {isDownloading ? <Zap className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
                     Download PDF
                   </button>
-                  {tier === 'free' && (
+                  {tier !== 'premium' && (
                     <Link
                       to={`/upgrade/${threadId}`}
                       className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/20 hover:bg-accent/30 text-accent text-xs font-semibold transition-all"
@@ -1384,9 +1560,122 @@ export default function Report() {
           <MarketAnalysisModule data={modules.market_analysis} />
           <FinancialsModule data={modules.financial_feasibility || modules.financials} />
           <CompetitiveIntelligenceModule data={modules.competitive_intelligence} />
-          <TechnicalRoadmapModule data={modules.technical_roadmap} />
-          <GTMStrategyModule data={modules.go_to_market_strategy || modules.gtm_strategy} />
-          <RiskAnalysisModule data={modules.risk_analysis} />
+          <TechnicalRoadmapModule data={modules.technical_requirements || modules.technical_roadmap} />
+          <GTMStrategyModule data={modules.gtm_strategy || modules.go_to_market_strategy} />
+          <RiskAnalysisModule data={modules.risks || modules.risk_analysis} />
+
+          {/* Regulatory Compliance */}
+          {modules.regulatory && (
+            <ModuleSection title="Regulatory Compliance" icon={Shield}>
+              <div className="space-y-3">
+                {Array.isArray(modules.regulatory?.compliance_requirements) && modules.regulatory.compliance_requirements.map((req: any, i: number) => (
+                  <div key={i} className="bg-secondary/30 rounded-xl p-4">
+                    <p className="text-sm font-medium mb-1">{req.regulation || req.requirement || req.area}</p>
+                    <p className="text-xs text-muted-foreground">{req.action_required || req.implementation || req.compliance_strategy}</p>
+                    {req.timeline && <p className="text-xs text-primary mt-1">Timeline: {req.timeline}</p>}
+                  </div>
+                ))}
+                {modules.regulatory?.overall_risk_level && (
+                  <div className="bg-secondary/20 rounded-lg p-3">
+                    <span className="text-xs font-semibold text-muted-foreground">Overall Risk: </span>
+                    <span className="text-sm font-bold text-primary">{modules.regulatory.overall_risk_level}</span>
+                  </div>
+                )}
+              </div>
+            </ModuleSection>
+          )}
+
+          {/* Funding Strategy */}
+          {modules.funding && (
+            <ModuleSection title="Funding Strategy" icon={DollarSign}>
+              <div className="space-y-4">
+                {Array.isArray(modules.funding?.funding_options) && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-3">Funding Options</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {modules.funding.funding_options.map((opt: any, i: number) => (
+                        <div key={i} className="bg-secondary/30 rounded-xl p-4">
+                          <p className="text-sm font-medium mb-1">{opt.type}</p>
+                          <p className="text-xs text-muted-foreground">{opt.description}</p>
+                          {opt.recommended_amount && <p className="text-xs text-primary mt-1">{opt.recommended_amount}</p>}
+                          {opt.suitability && <RiskBadge level={opt.suitability} />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {modules.funding?.funding_timeline && (
+                  <div className="bg-secondary/20 rounded-lg p-4">
+                    <h4 className="text-sm font-medium mb-2">Timeline</h4>
+                    <div className="grid grid-cols-3 gap-3 text-xs">
+                      {modules.funding.funding_timeline.pre_seed_timing && <MetricCard label="Pre-Seed" value={modules.funding.funding_timeline.pre_seed_timing} />}
+                      {modules.funding.funding_timeline.seed_timing && <MetricCard label="Seed" value={modules.funding.funding_timeline.seed_timing} />}
+                      {modules.funding.funding_timeline.series_a_timing && <MetricCard label="Series A" value={modules.funding.funding_timeline.series_a_timing} />}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ModuleSection>
+          )}
+
+          {/* Implementation Roadmap */}
+          {modules.roadmap && (
+            <ModuleSection title="Implementation Roadmap" icon={Target}>
+              <div className="space-y-4">
+                {modules.roadmap?.ninety_day_plan && (
+                  <div>
+                    <h4 className="text-sm font-medium text-primary mb-2">90-Day Launch Plan</h4>
+                    <div className="space-y-2">
+                      {Array.isArray(modules.roadmap.ninety_day_plan.week_1_4) && (
+                        <div className="bg-secondary/30 rounded-lg p-3">
+                          <p className="text-xs font-semibold mb-1">Weeks 1-4</p>
+                          <BulletList items={modules.roadmap.ninety_day_plan.week_1_4} />
+                        </div>
+                      )}
+                      {Array.isArray(modules.roadmap.ninety_day_plan.week_5_8) && (
+                        <div className="bg-secondary/30 rounded-lg p-3">
+                          <p className="text-xs font-semibold mb-1">Weeks 5-8</p>
+                          <BulletList items={modules.roadmap.ninety_day_plan.week_5_8} />
+                        </div>
+                      )}
+                      {Array.isArray(modules.roadmap.ninety_day_plan.week_9_12) && (
+                        <div className="bg-secondary/30 rounded-lg p-3">
+                          <p className="text-xs font-semibold mb-1">Weeks 9-12</p>
+                          <BulletList items={modules.roadmap.ninety_day_plan.week_9_12} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {modules.roadmap?.success_metrics && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Success Metrics</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {modules.roadmap.success_metrics.weekly_metrics && (
+                        <div className="bg-secondary/30 rounded-lg p-3">
+                          <p className="text-xs font-semibold text-primary mb-1">Weekly</p>
+                          <BulletList items={modules.roadmap.success_metrics.weekly_metrics.slice(0, 3)} />
+                        </div>
+                      )}
+                      {modules.roadmap.success_metrics.monthly_metrics && (
+                        <div className="bg-secondary/30 rounded-lg p-3">
+                          <p className="text-xs font-semibold text-primary mb-1">Monthly</p>
+                          <BulletList items={modules.roadmap.success_metrics.monthly_metrics.slice(0, 3)} />
+                        </div>
+                      )}
+                      {modules.roadmap.success_metrics.quarterly_metrics && (
+                        <div className="bg-secondary/30 rounded-lg p-3">
+                          <p className="text-xs font-semibold text-primary mb-1">Quarterly</p>
+                          <BulletList items={modules.roadmap.success_metrics.quarterly_metrics.slice(0, 3)} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ModuleSection>
+          )}
+
 
           {/* Investor Pitch Deck */}
           {modules.investor_pitch_deck && (

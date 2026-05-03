@@ -172,14 +172,30 @@ export function RiskBadge({ level }: { level: string }) {
     );
 }
 
-// List with bullets
-export function BulletList({ items, className = '' }: { items: string[]; className?: string }) {
+// List with bullets — handles string[] or object[] gracefully
+function itemToString(item: any): string {
+    if (typeof item === 'string') return item;
+    if (item == null) return '';
+    // Try common label fields first
+    const label = item.barrier || item.name || item.title || item.description
+        || item.requirement || item.action || item.metric || item.strategy
+        || item.risk || item.opportunity || item.factor || item.driver;
+    if (label) {
+        const detail = item.severity || item.impact || item.mitigation_strategy
+            || item.action_required || item.implementation || item.value || item.details;
+        return detail ? `${label} — ${detail}` : label;
+    }
+    // Last resort: stringify
+    return JSON.stringify(item);
+}
+
+export function BulletList({ items, className = '' }: { items: any[]; className?: string }) {
     return (
         <ul className={`space-y-2 ${className}`}>
             {items.map((item, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
                     <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                    <span>{item}</span>
+                    <span>{itemToString(item)}</span>
                 </li>
             ))}
         </ul>

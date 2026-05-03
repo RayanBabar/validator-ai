@@ -9,10 +9,11 @@ import { Link } from 'react-router-dom';
 
 interface Session {
   thread_id: string;
-  description: string;
+  idea_description: string;
   status: string;
   tier: string;
   created_at: string;
+  reports?: any; // Can be array or object depending on join result
 }
 
 export default function Dashboard() {
@@ -26,7 +27,14 @@ export default function Dashboard() {
 
       const { data, error } = await supabase
         .from('validation_sessions')
-        .select('*')
+        .select(`
+          *,
+          reports!reports_thread_id_fkey (
+            report_score,
+            report_data,
+            tier
+          )
+        `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -84,54 +92,102 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid gap-4">
-            {sessions.map((session) => (
-              <motion.div
-                key={session.thread_id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="glass rounded-xl p-6 hover:border-primary/30 transition-all group"
-              >
-                <div className="flex items-center justify-between gap-6">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                        session.tier === 'premium' ? 'bg-primary/20 text-primary border border-primary/30' :
-                        session.tier === 'standard' ? 'bg-accent/20 text-accent border border-accent/30' :
-                        'bg-secondary text-muted-foreground border border-border'
-                      }`}>
-                        {session.tier} Research
-                      </span>
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {new Date(session.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <h3 className="text-lg font-semibold truncate group-hover:text-primary transition-colors">
-                      {session.description}
-                    </h3>
-                  </div>
+            {sessions.map((session) => {
+              // Robust extraction of the report object (Supabase join can return array or single object)
+              const reports = Array.isArray(session.reports) ? session.reports : (session.reports ? [session.reports] : []);
+              
+              // Find the report that matches the CURRENT tier for score display
+              const currentReport = reports.find((r: any) => r.tier === session.tier);
+              const freeReport = reports.find((r: any) => r.tier === 'free');
+              
+              const rd = currentReport?.report_data;
+              const isReady = session.status === 'report_ready' || session.status === 'free_report_ready' || session.status === 'completed';
+              
+              // Extract and parse scores safely based on tier
+              const rawViability = freeReport ? (freeReport.report_data?.viability_score ?? freeReport.report_score) : null;
+              const rawGoNoGo = (session.tier !== 'free' && currentReport) ? (rd?.go_no_go_score ?? currentReport.report_score) : null;
+              
+              const viabilityScore = rawViability != null && !isNaN(Number(rawViability)) 
+                ? Math.round(Number(rawViability)) 
+                : null;
+                
+              const goNoGoScore = rawGoNoGo != null && !isNaN(Number(rawGoNoGo)) 
+                ? Math.round(Number(rawGoNoGo)) 
+                : null;
 
-                  <div className="flex items-center gap-4">
-                    <div className="text-right hidden sm:block">
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        session.status === 'report_ready' ? 'bg-green-500/10 text-green-500' :
+              return (
+                <motion.div
+                  key={session.thread_id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="glass rounded-xl p-8 hover:border-primary/30 transition-all group relative overflow-hidden"
+                >
+                  <Link
+                    to={isReady ? `/report/${session.thread_id}?tier=${session.tier}` : `/processing/${session.thread_id}`}
+                    className="absolute inset-0 z-10"
+                  />
+                  
+                  <div className="flex flex-col gap-6">
+                    <div>
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                          session.tier === 'premium' ? 'bg-primary/20 text-primary border border-primary/30' :
+                          session.tier === 'standard' ? 'bg-accent/20 text-accent border border-accent/30' :
+                          'bg-secondary text-muted-foreground border border-border'
+                        }`}>
+                          {session.tier} Research
+                        </span>
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(session.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      
+                      <h3 className="text-xl font-bold mb-6 text-foreground group-hover:text-primary transition-colors">
+                        {rd?.title || (session.idea_description?.length > 60 ? session.idea_description.substring(0, 60) + '...' : session.idea_description) || 'Research Idea'}
+                      </h3>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="p-4 glass rounded-xl">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Viability Score</p>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-bold text-foreground">
+                            {viabilityScore !== null ? viabilityScore : '--'}
+                          </span>
+                          <span className="text-xs text-muted-foreground">/ 100</span>
+                        </div>
+                      </div>
+                      
+                      <div className="p-4 glass rounded-xl">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">GO/NO GO Score</p>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-bold text-foreground">
+                            {goNoGoScore !== null ? goNoGoScore : '--'}
+                          </span>
+                          <span className="text-xs text-muted-foreground">/ 100</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-2 pt-4 border-t border-white/5">
+                      <span className={`text-[10px] px-2 py-1 rounded-full uppercase font-bold ${
+                        isReady ? 'bg-green-500/10 text-green-500' :
                         session.status === 'waiting_for_admin_approval' ? 'bg-amber-500/10 text-amber-500' :
                         'bg-blue-500/10 text-blue-500'
                       }`}>
                         {session.status.replace(/_/g, ' ')}
                       </span>
+                      
+                      <div className="flex items-center gap-2 text-primary text-xs font-semibold">
+                        {isReady ? 'View Full Report' : 'Track Progress'}
+                        <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </div>
                     </div>
-                    
-                    <Link
-                      to={session.status === 'report_ready' ? `/report/${session.thread_id}?tier=${session.tier}` : `/processing/${session.thread_id}`}
-                      className="p-2 rounded-lg bg-secondary hover:bg-primary hover:text-primary-foreground transition-all"
-                    >
-                      {session.status === 'report_ready' ? <FileText className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                    </Link>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>

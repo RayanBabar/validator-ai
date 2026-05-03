@@ -130,5 +130,16 @@ async def free_tier_scan(state: ValidationState) -> dict:
         ),
     )
 
+    # Send webhook with report data
+    thread_id = state.get("thread_id")
+    if thread_id:
+        from src.utils.webhook import send_report_webhook
+        from src.utils.supabase import update_session_status
+        
+        await send_report_webhook(
+            thread_id=thread_id, report_score=score, report_metadata=report.model_dump()
+        )
+        await update_session_status(thread_id, "free_report_ready")
+
     # Return both the report and the generated title (stored in state for other tiers)
     return {"final_report": report.model_dump(), "generated_title": generated_title}

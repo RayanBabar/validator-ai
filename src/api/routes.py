@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from uuid import uuid4
 from typing import Dict, Any, Union, Optional
 import logging
+import asyncio
 from src.models.inputs import (
     StartupSubmission,
     AdminUpdate,
@@ -23,7 +24,15 @@ from src.models.outputs import (
 from src.api.middleware import limiter
 from src.config.constants import MAX_INTERVIEW_QUESTIONS, STANDARD_MODULE_NAMES
 from src.utils.webhook import send_report_webhook
-from src.utils.supabase import update_user_tier, is_user_admin, get_user_profile
+from src.utils.supabase import (
+    update_user_tier, 
+    is_user_admin, 
+    get_user_profile, 
+    update_session_status,
+    update_session_tier,
+    get_report_from_db,
+    get_all_reports_for_thread
+)
 import src.graph.workflow as wf_module
 
 validation = APIRouter(tags=["Validation"])
@@ -245,6 +254,10 @@ async def upgrade_tier(
             as_node="interviewer", # Trick graph into thinking interview just finished -> goes to research
         )
 
+        # Persistence: Update the session tier and status in Supabase
+        await update_session_tier(thread_id, payload.tier)
+        await update_session_status(thread_id, "upgrade_initiated")
+
     async def run_paid_workflow():
         try:
             async for _ in wf_module.app_graph.astream(None, config):
@@ -329,57 +342,95 @@ class ReportResponse(BaseModel):
         Dict[str, Any],
         None,
     ]
+    available_tiers: list[str] = []
     error: Union[str, None] = None  # Error message if status is 'failed'
 
 
 @validation.get("/report/{thread_id}")
-async def get_report(thread_id: str) -> ReportResponse:
+async def get_report(thread_id: str, tier: Optional[str] = None) -> ReportResponse:
     """Get current report status and data."""
     config = {"configurable": {"thread_id": thread_id}}
-    snapshot = await wf_module.app_graph.aget_state(config)
 
-    if not snapshot.values:
-        raise HTTPException(404, "Report not found")
-
-    state = snapshot.values
-    inputs = state.get("inputs")
-    tier = inputs.tier if inputs else "free"
+    # --- Fetch state with a timeout to avoid hanging on DB pool issues ---
+    state = {}
+    current_tier = tier or "free"
+    try:
+        snapshot = await asyncio.wait_for(
+            wf_module.app_graph.aget_state(config),
+            timeout=5.0
+        )
+        state = snapshot.values or {}
+        inputs = state.get("inputs")
+        if inputs:
+            current_tier = inputs.tier
+    except asyncio.TimeoutError:
+        logger.warning(f"aget_state timed out for thread {thread_id}, falling back to DB only")
+    except Exception as e:
+        logger.warning(f"aget_state failed for thread {thread_id}: {e}, falling back to DB only")
 
     # Check for error state first
     if state.get("error"):
         return {
             "thread_id": thread_id,
             "status": "failed",
-            "tier": tier,
+            "tier": current_tier,
             "interview_summary": {
                 "questions_asked": len(state.get("questions_asked", [])),
                 "interview_complete": state.get("interview_phase") == "complete",
             },
             "report_data": state.get("final_report"),
+            "available_tiers": [current_tier],
             "error": state.get("error_message", "An unknown error occurred"),
         }
 
     status = "processing"
 
-    if not snapshot.next:
-        if tier == "free" and state.get("final_report"):
+    if not state:
+        # State is unavailable (timeout/error) — derive status from DB
+        status = "completed"
+    elif not hasattr(snapshot, 'next') or not snapshot.next:
+        if current_tier == "free" and state.get("final_report"):
             status = "free_report_complete"
         elif state.get("final_report"):
             status = "completed"
         else:
             status = "paused_for_upgrade"
-    elif "admin_approve" in snapshot.next:
+    elif "admin_approve" in getattr(snapshot, 'next', []):
         status = "waiting_for_admin"
+
+    # 1. Determine which tier's data to return
+    target_tier = tier or current_tier
+    report_data = state.get("final_report") if target_tier == current_tier else None
+    
+    # 2. Fetch all available reports for this thread from DB
+    all_db_reports = await get_all_reports_for_thread(thread_id)
+    available_tiers = list(set([r.get("tier") for r in all_db_reports]))
+    if current_tier not in available_tiers and state.get("final_report"):
+        available_tiers.append(current_tier)
+    
+    # 3. Fallback/Switch to requested tier from DB
+    if not report_data or target_tier != current_tier:
+        db_report = next((r for r in all_db_reports if r.get("tier") == target_tier), None)
+        if db_report:
+            report_data = db_report.get("report_data")
+            if target_tier != current_tier:
+                status = "completed" if target_tier != "free" else "free_report_complete"
+            elif status == "processing":
+                 status = "completed" if target_tier != "free" else "free_report_complete"
+
+    if not report_data and not available_tiers:
+        raise HTTPException(status_code=404, detail="Report not found")
 
     return {
         "thread_id": thread_id,
         "status": status,
-        "tier": tier,
+        "tier": target_tier,
         "interview_summary": {
             "questions_asked": len(state.get("questions_asked", [])),
             "interview_complete": state.get("interview_phase") == "complete",
         },
-        "report_data": state.get("final_report"),
+        "report_data": report_data,
+        "available_tiers": sorted(available_tiers),
         "error": None,
     }
 

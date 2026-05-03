@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Literal, Optional
 import json
 import logging
+import re
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -42,18 +43,32 @@ def _coerce_literal(value: Any, valid_options: list[str]) -> str:
     return value
 
 
+def _to_snake(s: str) -> str:
+    """Convert camelCase / PascalCase to snake_case."""
+    s = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', s)
+    s = re.sub(r'([a-z\d])([A-Z])', r'\1_\2', s)
+    return s.lower().replace("-", "_")
+
+def _normalize_keys(obj: Any) -> Any:
+    """Recursively snake_case all keys in a dict/list."""
+    if isinstance(obj, list):
+        return [_normalize_keys(i) for i in obj]
+    if isinstance(obj, dict):
+        return {_to_snake(k): _normalize_keys(v) for k, v in obj.items()}
+    return obj
+
 def _parse_json_string_field(value: Any) -> Any:
     """
     If a value is a JSON string (common LLM error for nested models),
-    parse it into a dict. Otherwise return as-is.
+    parse it into a dict/list and normalize keys to snake_case.
     """
     if isinstance(value, str):
         stripped = value.strip()
         if stripped.startswith('{') or stripped.startswith('['):
             try:
                 parsed = json.loads(stripped)
-                logger.debug(f"Parsed JSON string field -> {type(parsed).__name__}")
-                return parsed
+                logger.debug(f"Parsed and normalized JSON string field -> {type(parsed).__name__}")
+                return _normalize_keys(parsed)
             except json.JSONDecodeError:
                 pass
     return value
@@ -446,9 +461,20 @@ class EnhancedBusinessModelCanvas(BaseModel):
         ..., description="5-7 items: Success indicators and KPIs to track (LTV:CAC, MRR, churn rate, NPS, etc.)"
     )
 
-    BMC_highlights: List[str] = Field(
+    bmc_highlights: List[str] = Field(
         ..., description="3-5 items: Key highlights and differentiators of the business model"
     )
+
+    @field_validator(
+        'customer_segments', 'value_propositions', 'channels', 
+        'customer_relationships', 'revenue_streams', 'key_resources', 
+        'key_activities', 'key_partnerships', 'cost_structure',
+        'market_adjustments', 'key_metrics', 'bmc_highlights',
+        mode='before'
+    )
+    @classmethod
+    def parse_lists(cls, v):
+        return _parse_json_string_field(v)
 
 
 # --- Market Analysis ---
@@ -538,13 +564,18 @@ class MarketAnalysisReport(BaseModel):
         ..., description="Barriers to entry and market opportunities identified"
     )
 
+    @field_validator('total_addressable_market', 'serviceable_addressable_market', 'serviceable_obtainable_market', 'growth_trends', 'customer_demographics', 'market_entry_barriers', mode='before')
+    @classmethod
+    def parse_fields(cls, v):
+        return _parse_json_string_field(v)
+
 
 # --- Competitive Intelligence ---
 class Competitor(BaseModel):
     """Single competitor analysis - enhanced for Porter's Five Forces integration"""
 
     name: str = Field(..., description="Competitor company name")
-    HQ_location: str = Field(..., description="Country/City headquarters location")
+    hq_location: str = Field(..., description="Country/City headquarters location")
     strengths: List[str] = Field(..., description="Key strengths of this competitor")
     weaknesses: List[str] = Field(..., description="Key weaknesses of this competitor")
     market_position: str = Field(
@@ -714,6 +745,11 @@ class CompetitiveIntelligence(BaseModel):
         ..., description="Detailed strategy analysis for key competitors"
     )
 
+    @field_validator('direct_competitors', 'indirect_alternatives', 'porters_five_forces', 'competitive_positioning', 'competitor_strategies', mode='before')
+    @classmethod
+    def parse_fields(cls, v):
+        return _parse_json_string_field(v)
+
     differentiation_opportunities: List[DifferentiationOpportunity] = Field(
         ..., description="Unique value proposition and differentiation opportunities"
     )
@@ -754,9 +790,9 @@ class FinancialProjections(BaseModel):
 class UnitEconomics(BaseModel):
     """Unit economics breakdown"""
 
-    CAC: str = Field(..., description="Customer Acquisition Cost in {currency}")
-    LTV: str = Field(..., description="Lifetime Value in {currency}")
-    LTV_CAC_ratio: str = Field(..., description="LTV:CAC ratio (e.g., '3:1')")
+    cac: str = Field(..., description="Customer Acquisition Cost in {currency}")
+    ltv: str = Field(..., description="Lifetime Value in {currency}")
+    ltv_cac_ratio: str = Field(..., description="LTV:CAC ratio (e.g., '3:1')")
     contribution_margin: str = Field(..., description="Contribution margin percentage")
     payback_period_months: str = Field(..., description="CAC payback period in months")
 
@@ -795,7 +831,7 @@ class InvestmentRequirements(BaseModel):
 
 class FinancialKPI(BaseModel):
     """Financial KPI with detailed targets - for Financials module"""
-    KPI: str = Field(..., description="Name of the KPI")
+    kpi: str = Field(..., description="Name of the KPI")
     target: str = Field(..., description="Target value")
     why_critical: str = Field(..., description="Why this KPI is critical")
     year_1_target: str = Field(..., description="Year 1 specific target")
@@ -843,9 +879,14 @@ class FinancialFeasibility(BaseModel):
         ..., description="Monthly burn rate and runway"
     )
 
-    key_financial_KPIs: List[FinancialKPI] = Field(
+    key_financial_kpis: List[FinancialKPI] = Field(
         ..., description="Key financial metrics to track as structured objects"
     )
+
+    @field_validator('three_year_projections', 'revenue_model', 'unit_economics', 'break_even_analysis', 'initial_investment', 'burn_rate_runway', 'key_financial_kpis', mode='before')
+    @classmethod
+    def parse_fields(cls, v):
+        return _parse_json_string_field(v)
 
 # --- Technical Requirements ---
 class TechStack(BaseModel):
@@ -878,7 +919,7 @@ class Milestone(BaseModel):
 class DevelopmentTimeline(BaseModel):
     """Development timeline"""
 
-    MVP_weeks: str = Field(..., description="Weeks to MVP with key deliverable")
+    mvp_weeks: str = Field(..., description="Weeks to MVP with key deliverable")
     beta_weeks: str = Field(
         ..., description="Weeks to beta launch with key deliverable"
     )
@@ -922,7 +963,7 @@ class TeamComposition(BaseModel):
 class InfrastructureCosts(BaseModel):
     """Infrastructure costs breakdown by stage"""
 
-    MVP_monthly: str = Field(..., description="{currency} X-Y range at MVP stage")
+    mvp_monthly: str = Field(..., description="{currency} X-Y range at MVP stage")
     growth_monthly: str = Field(..., description="{currency} X-Y range at 10K users")
     scale_monthly: str = Field(..., description="{currency} X-Y range at 100K users")
     cost_drivers: List[str] = Field(..., description="Primary cost factors")
@@ -960,7 +1001,7 @@ class TechnicalRequirements(BaseModel):
         ..., description="Development timeline and milestones"
     )
 
-    MVP_features: List[MVPFeature] = Field(
+    mvp_features: List[MVPFeature] = Field(
         ..., description="MVP feature prioritization (structured objects)"
     )
 
@@ -971,6 +1012,11 @@ class TechnicalRequirements(BaseModel):
     infrastructure_costs: InfrastructureCosts = Field(
         ..., description="Multi-stage infrastructure costs (MVP, growth, scale)"
     )
+
+    @field_validator('technology_stack', 'development_timeline', 'mvp_features', 'team_composition', 'infrastructure_costs', mode='before')
+    @classmethod
+    def parse_fields(cls, v):
+        return _parse_json_string_field(v)
 
     scalability_plan: Optional[ScalabilityAnalysis] = Field(
         None, description="Structured scalability planning"
@@ -1069,6 +1115,16 @@ class RegulatoryCompliance(BaseModel):
         ..., description="Specific requirements for Privacy Policy"
     )
 
+    @field_validator(
+        'country_regulations', 'industry_compliance', 'licensing_permits',
+        'intellectual_property', 'terms_of_service_requirements', 
+        'privacy_policy_requirements',
+        mode='before'
+    )
+    @classmethod
+    def parse_lists(cls, v):
+        return _parse_json_string_field(v)
+
     compliance_costs: ComplianceCosts = Field(
         ..., description="Estimated legal and compliance costs"
     )
@@ -1079,8 +1135,8 @@ class AcquisitionChannel(BaseModel):
     """Customer acquisition channel"""
 
     channel: str = Field(..., description="Channel name")
-    ROI_rank: int = Field(..., description="ROI ranking (1=best)")
-    estimated_CAC: str = Field(..., description="Estimated CAC for this channel")
+    roi_rank: int = Field(..., description="ROI ranking (1=best)")
+    estimated_cac: str = Field(..., description="Estimated CAC for this channel")
     strategy: str = Field(..., description="Strategy for this channel")
 
 
@@ -1152,9 +1208,14 @@ class GoToMarketStrategy(BaseModel):
         ..., description="Marketing budget allocation"
     )
 
-    content_SEO_strategy: ContentSEOStrategy = Field(
+    content_seo_strategy: ContentSEOStrategy = Field(
         ..., description="Content marketing and SEO strategy"
     )
+
+    @field_validator('acquisition_channels', 'launch_strategy', 'marketing_budget', 'content_seo_strategy', 'partnerships', 'pricing_positioning', 'growth_hacking', mode='before')
+    @classmethod
+    def parse_fields(cls, v):
+        return _parse_json_string_field(v)
 
     partnerships: List[PartnershipOpportunity] = Field(
         ..., description="Partnership and distribution opportunities"
@@ -1231,6 +1292,11 @@ class RiskAssessment(BaseModel):
         ..., description="Market timing and competition risks"
     )
 
+    @field_validator('top_risks', 'mitigation_strategies', 'contingency_plans', 'kill_switches', 'dependency_risks', 'market_timing_risks', mode='before')
+    @classmethod
+    def parse_fields(cls, v):
+        return _parse_json_string_field(v)
+
 
 # --- Implementation Roadmap ---
 class NinetyDayPlan(BaseModel):
@@ -1264,7 +1330,12 @@ class YearOneObjectives(BaseModel):
     revenue_target: str = Field(..., description="Year 1 revenue target")
     customer_target: str = Field(..., description="Year 1 customer target")
     key_objectives: List[str] = Field(..., description="Key strategic objectives")
-    OKRs: List[OKR] = Field(..., description="Top OKRs for Year 1")
+    okrs: List[OKR] = Field(..., description="Top OKRs for Year 1")
+
+    @field_validator('key_objectives', 'okrs', mode='before')
+    @classmethod
+    def parse_fields(cls, v):
+        return _parse_json_string_field(v)
 
 class ResourceNeed(BaseModel):
     """Single resource requirement"""
@@ -1324,6 +1395,11 @@ class ImplementationRoadmap(BaseModel):
         ..., description="Success metrics by timeframe"
     )
 
+    @field_validator('ninety_day_plan', 'six_month_plan', 'year_one_objectives', 'resource_timeline', 'critical_path', 'success_metrics', mode='before')
+    @classmethod
+    def parse_fields(cls, v):
+        return _parse_json_string_field(v)
+
 
 # --- Funding Strategy ---
 class FundingOption(BaseModel):
@@ -1352,7 +1428,7 @@ class InvestorProfile(BaseModel):
     """Investor landscape"""
 
     investor_types: List[str] = Field(..., description="Types of investors to target")
-    VCs: List[str] = Field(..., description="Relevant VCs")
+    vcs: List[str] = Field(..., description="Relevant VCs")
     angel_networks: List[str] = Field(..., description="Relevant angel networks")
 
 
@@ -1410,15 +1486,10 @@ class FundingStrategy(BaseModel):
         ..., description="Fundraising process best practices"
     )
 
-    @model_validator(mode='before')
+    @field_validator('funding_options', 'grants', 'investor_landscape', 'funding_timeline', 'valuation_benchmarks', 'fundraising_process', mode='before')
     @classmethod
-    def parse_json_string_fields(cls, data):
-        """Parse nested model fields that arrive as JSON strings instead of dicts."""
-        if isinstance(data, dict):
-            for field_name in ('investor_landscape', 'funding_timeline', 'valuation_benchmarks'):
-                if field_name in data:
-                    data[field_name] = _parse_json_string_field(data[field_name])
-        return data
+    def parse_fields(cls, v):
+        return _parse_json_string_field(v)
 
 
 # --- Executive Summary ---

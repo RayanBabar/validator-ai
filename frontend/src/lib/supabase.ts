@@ -70,14 +70,19 @@ export async function updateSessionStatus(threadId: string, status: string, tier
     return data;
 }
 
-export async function getReportByThreadId(threadId: string) {
-    const { data, error } = await supabase
+export async function getReportByThreadId(threadId: string, tier?: string) {
+    let query = supabase
         .from('reports')
         .select('*')
-        .eq('thread_id', threadId)
-        .single();
+        .eq('thread_id', threadId);
+    
+    if (tier) {
+        query = query.eq('tier', tier);
+    }
 
-    if (error && error.code !== 'PGRST116') {
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
         console.error('Error fetching report:', error);
     }
     return data;

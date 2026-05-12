@@ -101,7 +101,7 @@ export default function Dashboard() {
               const freeReport = reports.find((r: any) => r.tier === 'free');
               
               const rd = currentReport?.report_data;
-              const isReady = session.status === 'report_ready' || session.status === 'free_report_ready' || session.status === 'completed';
+              const isReady = session.status === 'report_ready' || session.status === 'free_report_ready' || session.status === 'completed' || session.status?.endsWith('_report_ready');
               
               // Extract and parse scores safely based on tier
               const rawViability = freeReport ? (freeReport.report_data?.viability_score ?? freeReport.report_score) : null;
@@ -173,7 +173,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between mt-2 pt-4 border-t border-white/5">
                       <span className={`text-[10px] px-2 py-1 rounded-full uppercase font-bold ${
                         isReady ? 'bg-green-500/10 text-green-500' :
-                        session.status === 'waiting_for_admin_approval' ? 'bg-amber-500/10 text-amber-500' :
+                        (session.status === 'waiting_for_admin_approval' || session.status === 'waiting_for_admin') ? 'bg-amber-500/10 text-amber-500' :
                         'bg-blue-500/10 text-blue-500'
                       }`}>
                         {session.status.replace(/_/g, ' ')}

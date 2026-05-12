@@ -60,7 +60,7 @@ export default function Processing() {
           .eq('thread_id', threadId)
           .single();
 
-        if (session?.status === 'waiting_for_admin_approval') {
+        if (session?.status === 'waiting_for_admin_approval' || session?.status === 'waiting_for_admin') {
           setWaitingForAdmin(true);
           return;
         }
@@ -97,7 +97,7 @@ export default function Processing() {
         (payload) => {
           const newStatus = payload.new.status;
           console.log('Session status update:', newStatus);
-          if (newStatus === 'waiting_for_admin_approval') {
+          if (newStatus === 'waiting_for_admin_approval' || newStatus === 'waiting_for_admin') {
             setWaitingForAdmin(true);
           } else if (newStatus === 'report_ready' || newStatus.endsWith('_report_ready')) {
             handleReportReady(payload.new.tier || tier);
@@ -121,7 +121,7 @@ export default function Processing() {
           .single();
         
         if (session) {
-          if (session.status === 'waiting_for_admin_approval') {
+          if (session.status === 'waiting_for_admin_approval' || session.status === 'waiting_for_admin') {
             setWaitingForAdmin(true);
           } else if (session.status === 'report_ready' || session.status.endsWith('_report_ready')) {
             handleReportReady(session.tier || tier);

@@ -53,15 +53,15 @@ export function DataTable({
             <table className="w-full text-sm">
                 <thead>
                     <tr className="border-b border-white/10">
-                        {headers.map((header, i) => (
+                        {Array.isArray(headers) && headers.map((header, i) => (
                             <th key={i} className="text-left py-3 px-4 text-muted-foreground font-medium">{header}</th>
                         ))}
                     </tr>
                 </thead>
                 <tbody>
-                    {rows.map((row, i) => (
+                    {Array.isArray(rows) && rows.map((row, i) => (
                         <tr key={i} className="border-b border-white/5 hover:bg-secondary/20 transition-colors">
-                            {row.map((cell, j) => (
+                            {Array.isArray(row) && row.map((cell, j) => (
                                 <td key={j} className="py-3 px-4">{cell}</td>
                             ))}
                         </tr>
@@ -94,7 +94,33 @@ export function MarketSizeCard({
             </div>
             <p className="text-2xl font-bold text-primary mb-2">{value}</p>
 
-            {details?.definition && (
+            {details && typeof details === 'string' && (
+                <>
+                    <button
+                        onClick={() => setShowDetails(!showDetails)}
+                        className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                    >
+                        {showDetails ? 'Hide' : 'Show'} details
+                        {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+
+                    {showDetails && (
+                        <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+                            <p>{details}</p>
+                            {sources && sources.length > 0 && (
+                                <div>
+                                    <strong>Sources:</strong>
+                                    <ul className="list-disc list-inside mt-1">
+                                        {Array.isArray(sources) && sources.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </>
+            )}
+
+            {details && typeof details === 'object' && details.definition && (
                 <>
                     <button
                         onClick={() => setShowDetails(!showDetails)}
@@ -113,7 +139,7 @@ export function MarketSizeCard({
                                 <div>
                                     <strong>Sources:</strong>
                                     <ul className="list-disc list-inside mt-1">
-                                        {sources.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}
+                                        {Array.isArray(sources) && sources.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}
                                     </ul>
                                 </div>
                             )}
@@ -163,7 +189,7 @@ export function RiskBadge({ level }: { level: string }) {
         low: '🟢',
     };
 
-    const lowerLevel = level.toLowerCase();
+    const lowerLevel = (level || 'medium').toLowerCase();
 
     return (
         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${colors[lowerLevel] || colors.medium}`}>
@@ -190,6 +216,7 @@ function itemToString(item: any): string {
 }
 
 export function BulletList({ items, className = '' }: { items: any[]; className?: string }) {
+    if (!items || !Array.isArray(items)) return null;
     return (
         <ul className={`space-y-2 ${className}`}>
             {items.map((item, i) => (

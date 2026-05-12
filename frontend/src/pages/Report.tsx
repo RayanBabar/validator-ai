@@ -5,8 +5,10 @@ import { BarChart3, AlertTriangle, Lightbulb, Target, Users, Lock, ArrowRight, T
 import { Navbar } from '@/components/Navbar';
 import { FloatingOrbs } from '@/components/FloatingOrbs';
 import { Footer } from '@/components/Footer';
+import { useAuth } from '@/contexts/AuthContext';
 import { getReport, getScoreColorClass, getScoreBgClass, adminSave, adminApprove } from '@/lib/api';
 import { ModuleSection, DataTable, MarketSizeCard, MetricCard, RiskBadge, BulletList, getModuleIcon, formatKey } from '@/components/ReportModules';
+import { RecursiveEditor } from '@/components/RecursiveEditor';
 
 function AnimatedScore({ value, max }: { value: number; max: number }) {
   const [count, setCount] = useState(0);
@@ -147,6 +149,12 @@ function MarketAnalysisModule({ data }: { data: any }) {
                 <BulletList items={data.growth_trends.drivers} />
              </div>
           </div>
+          {data.growth_trends.trends && data.growth_trends.trends.length > 0 && (
+             <div className="mt-4 bg-secondary/20 rounded-xl p-4 border border-secondary/30">
+                <p className="text-xs font-semibold mb-2 text-primary">Emerging Trends</p>
+                <BulletList items={data.growth_trends.trends} />
+             </div>
+          )}
         </div>
       )}
 
@@ -157,15 +165,43 @@ function MarketAnalysisModule({ data }: { data: any }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-secondary/30 rounded-xl p-4">
                <div className="space-y-2">
-                 <p className="text-xs text-muted-foreground"><span className="font-semibold text-primary">Location:</span> {data.customer_demographics.location}</p>
-                 <p className="text-xs text-muted-foreground"><span className="font-semibold text-primary">Age:</span> {data.customer_demographics.age_range}</p>
-                 <p className="text-xs text-muted-foreground"><span className="font-semibold text-primary">Income:</span> {data.customer_demographics.income_level}</p>
+                 {data.customer_demographics.location && <p className="text-xs text-muted-foreground"><span className="font-semibold text-primary">Location:</span> {data.customer_demographics.location}</p>}
+                 {data.customer_demographics.age_range && <p className="text-xs text-muted-foreground"><span className="font-semibold text-primary">Age:</span> {data.customer_demographics.age_range}</p>}
+                 {data.customer_demographics.income_level && <p className="text-xs text-muted-foreground"><span className="font-semibold text-primary">Income:</span> {data.customer_demographics.income_level}</p>}
+                 {data.customer_demographics.pain_points && data.customer_demographics.pain_points.length > 0 && (
+                     <div className="pt-2">
+                         <span className="font-semibold text-xs text-primary block mb-1">Pain Points:</span>
+                         <BulletList items={data.customer_demographics.pain_points} className="mt-1" />
+                     </div>
+                 )}
                </div>
             </div>
-            <div className="bg-secondary/30 rounded-xl p-4">
-               <p className="text-xs font-semibold mb-2">Psychographics & Behavior</p>
-               <p className="text-xs text-muted-foreground">{data.customer_demographics.psychographics}</p>
-            </div>
+            {data.customer_demographics.psychographics && (
+                <div className="bg-secondary/30 rounded-xl p-4">
+                   <p className="text-xs font-semibold mb-2">Psychographics & Behavior</p>
+                   <p className="text-xs text-muted-foreground">{data.customer_demographics.psychographics}</p>
+                </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Market Entry Barriers */}
+      {data.market_entry_barriers && data.market_entry_barriers.length > 0 && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+            <Shield className="w-4 h-4 text-orange-400" /> Market Entry Barriers
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+             {data.market_entry_barriers.map((barrier: any, i: number) => (
+                 <div key={i} className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4">
+                     <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs font-bold leading-tight pr-2">{barrier.barrier}</span>
+                        <RiskBadge level={barrier.severity} />
+                     </div>
+                     <p className="text-[10px] text-muted-foreground mt-2"><strong className="text-foreground">Mitigation:</strong> {barrier.mitigation_strategy}</p>
+                 </div>
+             ))}
           </div>
         </div>
       )}
@@ -237,24 +273,96 @@ function FinancialsModule({ data }: { data: any }) {
           )}
         </div>
 
-        {/* Revenue Model */}
-        {data.revenue_model && (
-          <div className="bg-secondary/30 rounded-xl p-5">
-            <h4 className="text-xs font-semibold mb-3 uppercase tracking-wider text-primary">Revenue Streams</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <p className="text-xs font-bold mb-2">Primary Model: {data.revenue_model.primary_revenue_model}</p>
-                <BulletList items={data.revenue_model.revenue_streams} />
-              </div>
-              <div className="bg-primary/5 rounded-lg p-3">
-                 <p className="text-[10px] font-semibold text-primary mb-1">Pricing Strategy</p>
-                 <p className="text-xs text-muted-foreground italic">{data.revenue_model.pricing_strategy}</p>
-              </div>
+      {/* Break Even & Initial Investment */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Initial Investment */}
+        {(data.initial_investment || data.investment_requirements) && (
+            <div className="bg-secondary/30 rounded-xl p-5 border border-primary/10">
+              <h4 className="text-xs font-semibold mb-3 uppercase tracking-wider text-primary flex items-center gap-2">
+                 <DollarSign className="w-3 h-3" /> Initial Investment
+              </h4>
+              <p className="text-2xl font-bold mb-4">{data.initial_investment?.total_amount || data.investment_requirements?.total_investment || 'N/A'}</p>
+              
+              {data.initial_investment && (
+                  <div className="space-y-2">
+                     <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Development</span>
+                        <span className="font-semibold">{data.initial_investment.development}</span>
+                     </div>
+                     <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Marketing</span>
+                        <span className="font-semibold">{data.initial_investment.marketing}</span>
+                     </div>
+                     <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Operations</span>
+                        <span className="font-semibold">{data.initial_investment.operations}</span>
+                     </div>
+                     <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Contingency</span>
+                        <span className="font-semibold">{data.initial_investment.contingency}</span>
+                     </div>
+                  </div>
+              )}
             </div>
-          </div>
+        )}
+
+        {/* Break Even Analysis */}
+        {data.break_even_analysis && (
+            <div className="bg-secondary/30 rounded-xl p-5 border border-primary/10">
+              <h4 className="text-xs font-semibold mb-3 uppercase tracking-wider text-primary flex items-center gap-2">
+                 <Target className="w-3 h-3" /> Break-Even Analysis
+              </h4>
+              <div className="mb-4">
+                  <p className="text-xs text-muted-foreground mb-1">Target Timeline</p>
+                  <p className="text-xl font-bold text-green-400">{data.break_even_analysis.timeline_months} Months</p>
+              </div>
+              <div className="mb-3">
+                  <p className="text-xs text-muted-foreground mb-1">Break-Even Point</p>
+                  <p className="text-sm font-semibold">{data.break_even_analysis.break_even_point}</p>
+              </div>
+              {data.break_even_analysis.key_factors && data.break_even_analysis.key_factors.length > 0 && (
+                  <div>
+                      <p className="text-[10px] font-semibold text-primary mb-1">Key Factors</p>
+                      <BulletList items={data.break_even_analysis.key_factors} />
+                  </div>
+              )}
+            </div>
         )}
       </div>
-    </ModuleSection>
+
+      {/* Revenue Model */}
+      {data.revenue_model && (
+        <div className="bg-secondary/30 rounded-xl p-5">
+          <h4 className="text-xs font-semibold mb-3 uppercase tracking-wider text-primary">Revenue Streams & Strategy</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <p className="text-xs font-bold mb-2">Primary Model: <span className="text-primary">{data.revenue_model.primary_model || data.revenue_model.primary_revenue_model}</span></p>
+              {data.revenue_model.revenue_drivers && (
+                 <div className="mt-2">
+                    <p className="text-[10px] font-semibold text-muted-foreground mb-1">Revenue Drivers</p>
+                    <BulletList items={data.revenue_model.revenue_drivers} />
+                 </div>
+              )}
+              {data.revenue_model.revenue_streams && (
+                 <div className="mt-2">
+                    <p className="text-[10px] font-semibold text-muted-foreground mb-1">Revenue Streams</p>
+                    <BulletList items={data.revenue_model.revenue_streams} />
+                 </div>
+              )}
+            </div>
+            
+            {(data.revenue_model.pricing_tiers || data.revenue_model.pricing_strategy) && (
+                <div className="bg-primary/5 rounded-lg p-3 border border-primary/10">
+                   <p className="text-xs font-semibold text-primary mb-2">Pricing Strategy</p>
+                   {data.revenue_model.pricing_tiers && <BulletList items={data.revenue_model.pricing_tiers} />}
+                   {data.revenue_model.pricing_strategy && <p className="text-xs text-muted-foreground italic mt-2">{data.revenue_model.pricing_strategy}</p>}
+                </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  </ModuleSection>
   );
 }
 
@@ -264,8 +372,34 @@ function CompetitiveIntelligenceModule({ data }: { data: any }) {
 
   return (
     <ModuleSection title="Competitive Intelligence" icon={Shield}>
+      {/* Porter's Five Forces */}
+      {data.porters_five_forces && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-primary" /> Porter's Five Forces
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+             {[
+               { name: 'Rivalry', data: data.porters_five_forces.industry_rivalry },
+               { name: 'New Entrants', data: data.porters_five_forces.threat_of_new_entrants },
+               { name: 'Substitutes', data: data.porters_five_forces.threat_of_substitutes },
+               { name: 'Supplier Power', data: data.porters_five_forces.bargaining_power_of_suppliers },
+               { name: 'Buyer Power', data: data.porters_five_forces.bargaining_power_of_buyers }
+             ].map((force, i) => force.data && (
+                 <div key={i} className="bg-secondary/30 rounded-xl p-4 border border-white/5">
+                    <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs font-bold leading-tight">{force.name}</span>
+                        <RiskBadge level={force.data.score} />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">{force.data.analysis}</p>
+                 </div>
+             ))}
+          </div>
+        </div>
+      )}
+
       {/* Direct Competitors */}
-      {data.direct_competitors && (
+      {data.direct_competitors && data.direct_competitors.length > 0 && (
         <div className="mb-6">
           <h4 className="text-sm font-medium mb-3">Direct Competitors</h4>
           <div className="space-y-3">
@@ -321,22 +455,26 @@ function CompetitiveIntelligenceModule({ data }: { data: any }) {
 
                 {/* Competitor Dots */}
                 {data.competitive_positioning.competitor_positions.map((comp: any, i: number) => {
-                  const getPosition = (quadrant: string) => {
+                  const getPosition = (quadrant: string, x?: number, y?: number) => {
+                    // Use exact coordinates if provided (scale 0-10 -> 0-100%)
+                    if (x !== undefined && y !== undefined) {
+                        return { left: (x / 10) * 100, top: 100 - ((y / 10) * 100) };
+                    }
                     const jitter = () => Math.random() * 15 - 7.5;
-                    if (quadrant.includes('Top-Left')) return { left: 15 + jitter(), top: 20 + jitter() };
-                    if (quadrant.includes('Top-Right')) return { left: 60 + jitter(), top: 20 + jitter() };
-                    if (quadrant.includes('Bottom-Left')) return { left: 15 + jitter(), top: 60 + jitter() };
-                    if (quadrant.includes('Bottom-Right')) return { left: 60 + jitter(), top: 60 + jitter() };
-                    return { left: 40, top: 40 };
+                    if (quadrant.includes('Top-Left')) return { left: 25 + jitter(), top: 25 + jitter() };
+                    if (quadrant.includes('Top-Right')) return { left: 75 + jitter(), top: 25 + jitter() };
+                    if (quadrant.includes('Bottom-Left')) return { left: 25 + jitter(), top: 75 + jitter() };
+                    if (quadrant.includes('Bottom-Right')) return { left: 75 + jitter(), top: 75 + jitter() };
+                    return { left: 50, top: 50 };
                   };
                   const getColor = (quadrant: string) => {
                     if (quadrant.includes('Top-Left')) return 'bg-green-500';
                     if (quadrant.includes('Top-Right')) return 'bg-blue-500';
                     if (quadrant.includes('Bottom-Left')) return 'bg-red-500';
                     if (quadrant.includes('Bottom-Right')) return 'bg-yellow-500';
-                    return 'bg-gray-500';
+                    return 'bg-primary';
                   };
-                  const pos = getPosition(comp.quadrant);
+                  const pos = getPosition(comp.quadrant, comp.x, comp.y);
                   return (
                     <div
                       key={i}
@@ -344,7 +482,7 @@ function CompetitiveIntelligenceModule({ data }: { data: any }) {
                       style={{ left: `${pos.left}%`, top: `${pos.top}%` }}
                       title={`${comp.name}: ${comp.quadrant}`}
                     >
-                      <span className="absolute top-4 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap">{comp.name}</span>
+                      <span className="absolute top-4 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap bg-background/80 px-1 rounded">{comp.name}</span>
                     </div>
                   );
                 })}
@@ -363,29 +501,60 @@ function CompetitiveIntelligenceModule({ data }: { data: any }) {
         </div>
       )}
 
-      {/* Differentiation Strategy */}
-      {data.differentiation_strategy && (
-        <div className="mb-6">
-          <h4 className="text-sm font-medium mb-3">Differentiation Strategy</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.differentiation_strategy.core_differentiators && (
-              <div>
-                <h5 className="text-xs font-medium text-primary mb-2">Core Differentiators</h5>
-                <BulletList items={data.differentiation_strategy.core_differentiators} />
+      {/* Moats & Differentiation Opportunities */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {(data.differentiation_opportunities || data.differentiation_strategy) && (
+            <div>
+              <h4 className="text-sm font-medium mb-3">Differentiation Strategy</h4>
+              {data.differentiation_opportunities && data.differentiation_opportunities.length > 0 ? (
+                  <div className="space-y-3">
+                      {data.differentiation_opportunities.map((opp: any, i: number) => (
+                          <div key={i} className="bg-secondary/30 rounded-xl p-3 border border-white/5">
+                              <p className="text-xs mb-2">{opp.opportunity}</p>
+                              <div className="flex gap-4">
+                                  <span className="text-[10px] text-muted-foreground">Impact: <strong className="text-primary">{opp.impact}</strong></span>
+                                  <span className="text-[10px] text-muted-foreground">Difficulty: <strong className="text-foreground">{opp.difficulty}</strong></span>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              ) : (
+                  <div className="bg-secondary/30 rounded-xl p-4 space-y-4">
+                    {data.differentiation_strategy.core_differentiators && (
+                      <div>
+                        <h5 className="text-xs font-medium text-primary mb-2">Core Differentiators</h5>
+                        <BulletList items={data.differentiation_strategy.core_differentiators} />
+                      </div>
+                    )}
+                    {data.differentiation_strategy.sustainable_advantages && (
+                      <div>
+                        <h5 className="text-xs font-medium text-green-400 mb-2">Sustainable Advantages</h5>
+                        <BulletList items={data.differentiation_strategy.sustainable_advantages} />
+                      </div>
+                    )}
+                  </div>
+              )}
+            </div>
+          )}
+
+          {data.competitive_moats && data.competitive_moats.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium mb-3">Competitive Moats</h4>
+              <div className="space-y-3">
+                  {data.competitive_moats.map((moat: any, i: number) => (
+                      <div key={i} className="bg-secondary/30 rounded-xl p-3 border border-primary/10">
+                          <p className="text-xs font-semibold text-primary mb-1">{moat.moat_type}</p>
+                          <p className="text-[10px] text-muted-foreground mb-2">{moat.description}</p>
+                          <span className="text-[10px] bg-secondary px-2 py-1 rounded">Time to build: {moat.time_to_build}</span>
+                      </div>
+                  ))}
               </div>
-            )}
-            {data.differentiation_strategy.sustainable_advantages && (
-              <div>
-                <h5 className="text-xs font-medium text-green-400 mb-2">Sustainable Advantages</h5>
-                <BulletList items={data.differentiation_strategy.sustainable_advantages} />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+            </div>
+          )}
+      </div>
 
       {/* Indirect Alternatives */}
-      {data.indirect_alternatives && (
+      {data.indirect_alternatives && data.indirect_alternatives.length > 0 && (
         <div>
           <h4 className="text-sm font-medium mb-3">Indirect Alternatives</h4>
           <div className="space-y-3">
@@ -447,15 +616,15 @@ function TechnicalRoadmapModule({ data }: { data: any }) {
                 <BulletList items={Array.isArray(data.technology_stack.infrastructure) ? data.technology_stack.infrastructure : [data.technology_stack.infrastructure]} />
               </div>
             )}
-            {data.technology_stack.third_party_services && (
+            {(data.technology_stack.tools || data.technology_stack.third_party_services) && (
               <div className="bg-secondary/30 rounded-xl p-3">
-                <p className="text-xs font-semibold text-primary mb-1">3rd Party Services</p>
-                <BulletList items={Array.isArray(data.technology_stack.third_party_services) ? data.technology_stack.third_party_services : [data.technology_stack.third_party_services]} />
+                <p className="text-xs font-semibold text-primary mb-1">3rd Party & Tools</p>
+                <BulletList items={Array.isArray(data.technology_stack.tools || data.technology_stack.third_party_services) ? (data.technology_stack.tools || data.technology_stack.third_party_services) : [data.technology_stack.tools || data.technology_stack.third_party_services]} />
               </div>
             )}
           </div>
-          {data.technology_stack.rationale && (
-            <p className="text-xs text-muted-foreground mt-3 italic">{data.technology_stack.rationale}</p>
+          {(data.technology_stack.stack_rationale || data.technology_stack.rationale) && (
+            <p className="text-xs text-muted-foreground mt-3 italic">{data.technology_stack.stack_rationale || data.technology_stack.rationale}</p>
           )}
         </div>
       )}
@@ -464,7 +633,8 @@ function TechnicalRoadmapModule({ data }: { data: any }) {
       {data.development_timeline && (
         <div className="mb-6">
           <h4 className="text-sm font-medium mb-3">Development Timeline</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            {/* Old Schema */}
             {data.development_timeline.mvp_phase && (
               <div className="bg-secondary/30 rounded-xl p-3">
                 <p className="text-xs font-semibold text-primary mb-1">MVP Phase</p>
@@ -483,13 +653,41 @@ function TechnicalRoadmapModule({ data }: { data: any }) {
                 <p className="text-xs text-muted-foreground">{data.development_timeline.launch_phase.duration || data.development_timeline.launch_phase}</p>
               </div>
             )}
-            {data.development_timeline.total_time_to_market && (
+            {/* New Schema */}
+            {data.development_timeline.mvp_weeks && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">MVP</p>
+                <p className="text-xs text-muted-foreground">{data.development_timeline.mvp_weeks}</p>
+              </div>
+            )}
+            {data.development_timeline.beta_weeks && (
+              <div className="bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-1">Beta Launch</p>
+                <p className="text-xs text-muted-foreground">{data.development_timeline.beta_weeks}</p>
+              </div>
+            )}
+            {data.development_timeline.launch_weeks && (
               <div className="bg-primary/10 border border-primary/20 rounded-xl p-3">
-                <p className="text-xs font-semibold text-primary mb-1">Total Time to Market</p>
-                <p className="text-sm font-bold">{data.development_timeline.total_time_to_market}</p>
+                <p className="text-xs font-semibold text-primary mb-1">Full Launch</p>
+                <p className="text-sm font-bold">{data.development_timeline.launch_weeks}</p>
               </div>
             )}
           </div>
+
+          {/* New Schema Key Milestones */}
+          {data.development_timeline.key_milestones && data.development_timeline.key_milestones.length > 0 && (
+            <div className="space-y-2 mt-2">
+               {data.development_timeline.key_milestones.map((m: any, i: number) => (
+                  <div key={i} className="flex flex-col md:flex-row gap-2 bg-secondary/20 rounded-lg p-3">
+                     <div className="w-24 shrink-0 text-xs font-bold text-primary">{m.week}</div>
+                     <div className="flex-1 text-xs">
+                        <p className="text-muted-foreground mb-1">{m.tasks}</p>
+                        <p className="text-foreground font-semibold"><span className="text-muted-foreground">Deliverable:</span> {m.deliverable}</p>
+                     </div>
+                  </div>
+               ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -505,9 +703,13 @@ function TechnicalRoadmapModule({ data }: { data: any }) {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium">{feat.feature || feat.name || feat.title}</p>
-                  {feat.priority && <span className={`text-xs px-1.5 py-0.5 rounded ${feat.priority === 'Must Have' ? 'bg-red-500/20 text-red-400' : feat.priority === 'Should Have' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>{feat.priority}</span>}
+                  {feat.priority && <span className={`text-xs px-1.5 py-0.5 rounded mt-1 inline-block ${feat.priority.toLowerCase().includes('must') ? 'bg-red-500/20 text-red-400' : feat.priority.toLowerCase().includes('should') ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>{feat.priority}</span>}
                   {feat.description && <p className="text-xs text-muted-foreground mt-1">{feat.description}</p>}
-                  {feat.effort && <p className="text-xs text-muted-foreground mt-0.5">Effort: {feat.effort} | Complexity: {feat.complexity}</p>}
+                  {feat.effort_days ? (
+                      <p className="text-xs text-muted-foreground mt-1">Effort: {feat.effort_days} days</p>
+                  ) : (
+                      feat.effort && <p className="text-xs text-muted-foreground mt-1">Effort: {feat.effort} {feat.complexity && `| Complexity: ${feat.complexity}`}</p>
+                  )}
                 </div>
               </div>
             ))}
@@ -519,20 +721,50 @@ function TechnicalRoadmapModule({ data }: { data: any }) {
       {data.team_composition && (
         <div className="mb-6">
           <h4 className="text-sm font-medium mb-3">Team Composition</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {data.team_composition.founding_team && (
-              <div className="bg-secondary/30 rounded-xl p-3">
-                <p className="text-xs font-semibold text-primary mb-1">Founding Team</p>
-                <BulletList items={Array.isArray(data.team_composition.founding_team) ? data.team_composition.founding_team : [data.team_composition.founding_team]} />
-              </div>
-            )}
-            {data.team_composition.early_hires && (
-              <div className="bg-secondary/30 rounded-xl p-3">
-                <p className="text-xs font-semibold text-primary mb-1">Early Hires</p>
-                <BulletList items={Array.isArray(data.team_composition.early_hires) ? data.team_composition.early_hires : [data.team_composition.early_hires]} />
-              </div>
-            )}
-          </div>
+          
+          {/* Old Schema */}
+          {(data.team_composition.founding_team || data.team_composition.early_hires) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              {data.team_composition.founding_team && (
+                <div className="bg-secondary/30 rounded-xl p-3">
+                  <p className="text-xs font-semibold text-primary mb-1">Founding Team</p>
+                  <BulletList items={Array.isArray(data.team_composition.founding_team) ? data.team_composition.founding_team : [data.team_composition.founding_team]} />
+                </div>
+              )}
+              {data.team_composition.early_hires && (
+                <div className="bg-secondary/30 rounded-xl p-3">
+                  <p className="text-xs font-semibold text-primary mb-1">Early Hires</p>
+                  <BulletList items={Array.isArray(data.team_composition.early_hires) ? data.team_composition.early_hires : [data.team_composition.early_hires]} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* New Schema */}
+          {data.team_composition.key_hires && data.team_composition.key_hires.length > 0 && (
+             <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                   {data.team_composition.key_hires.map((hire: any, i: number) => (
+                      <div key={i} className="bg-secondary/20 rounded-lg p-3">
+                         <div className="flex justify-between items-start mb-1">
+                             <p className="text-xs font-bold text-primary">{hire.role}</p>
+                             <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded">{hire.hiring_priority}</span>
+                         </div>
+                         <p className="text-[10px] text-muted-foreground mb-1">{hire.skills}</p>
+                         <p className="text-[10px] font-semibold text-green-400">{hire.estimated_cost}</p>
+                      </div>
+                   ))}
+                </div>
+                {data.team_composition.team_size && (
+                   <p className="text-xs text-muted-foreground mt-2"><strong className="text-foreground">Team Size Stage:</strong> {data.team_composition.team_size}</p>
+                )}
+                {data.team_composition.hiring_notes && (
+                   <div className="bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
+                      <p className="text-xs text-blue-400 italic">{data.team_composition.hiring_notes}</p>
+                   </div>
+                )}
+             </div>
+          )}
         </div>
       )}
 
@@ -541,10 +773,17 @@ function TechnicalRoadmapModule({ data }: { data: any }) {
         <div className="mb-6">
           <h4 className="text-sm font-medium mb-3">Infrastructure Costs</h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {data.infrastructure_costs.mvp_monthly_cost && <MetricCard label="MVP Monthly" value={data.infrastructure_costs.mvp_monthly_cost} />}
-            {data.infrastructure_costs.growth_monthly_cost && <MetricCard label="Growth Monthly" value={data.infrastructure_costs.growth_monthly_cost} />}
-            {data.infrastructure_costs.scale_monthly_cost && <MetricCard label="Scale Monthly" value={data.infrastructure_costs.scale_monthly_cost} />}
+            {/* Handles both old and new schemas gracefully */}
+            <MetricCard label="MVP Stage" value={data.infrastructure_costs.mvp_monthly_cost || data.infrastructure_costs.mvp_monthly || 'N/A'} />
+            <MetricCard label="Growth Stage" value={data.infrastructure_costs.growth_monthly_cost || data.infrastructure_costs.growth_monthly || 'N/A'} />
+            <MetricCard label="Scale Stage" value={data.infrastructure_costs.scale_monthly_cost || data.infrastructure_costs.scale_monthly || 'N/A'} />
           </div>
+          {data.infrastructure_costs.cost_drivers && data.infrastructure_costs.cost_drivers.length > 0 && (
+             <div className="mt-3 bg-secondary/30 rounded-xl p-3">
+                <p className="text-xs font-semibold text-primary mb-2">Primary Cost Drivers</p>
+                <BulletList items={data.infrastructure_costs.cost_drivers} />
+             </div>
+          )}
         </div>
       )}
 
@@ -600,96 +839,186 @@ function RiskAnalysisModule({ data }: { data: any }) {
   return (
     <ModuleSection title="Risk Assessment & Mitigation" icon={AlertTriangle}>
       <div className="space-y-6">
-        {/* Market & Technical Risks */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {data.market_risks && data.market_risks.length > 0 && (
-            <div className="bg-orange-500/5 border border-orange-500/10 rounded-xl p-4">
-              <h5 className="text-xs font-semibold text-orange-400 mb-3 uppercase tracking-wider">Market Risks</h5>
-              <div className="space-y-3">
-                {data.market_risks.map((risk: any, i: number) => (
-                  <div key={i} className="bg-secondary/30 rounded-lg p-2.5">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs font-bold">{risk.risk_factor}</span>
-                      <div className="flex gap-1">
+        
+        {/* NEW SCHEMA: Top Risks */}
+        {(data.top_risks || data.risks) && (data.top_risks?.length > 0 || data.risks?.length > 0) && (
+          <div className="bg-orange-500/5 border border-orange-500/10 rounded-xl p-4">
+            <h5 className="text-xs font-semibold text-orange-400 mb-3 uppercase tracking-wider">Top Risks</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {(data.top_risks || data.risks).map((risk: any, i: number) => (
+                <div key={i} className="bg-secondary/30 rounded-lg p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-xs font-bold leading-tight pr-2">{risk.risk_name}</span>
+                    <div className="flex flex-col gap-1 shrink-0 items-end">
+                       <RiskBadge level={risk.impact} />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 mt-2">
+                    <p className="text-[10px] text-muted-foreground"><strong className="text-foreground">Prob:</strong> {risk.probability}</p>
+                    <p className="text-[10px] text-muted-foreground"><strong className="text-foreground">Mitigation:</strong> {risk.mitigation}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* NEW SCHEMA: Mitigation Strategies */}
+        {data.mitigation_strategies && data.mitigation_strategies.length > 0 && (
+            <div className="bg-secondary/30 rounded-xl p-4">
+                <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">General Mitigation Strategies</h5>
+                <BulletList items={data.mitigation_strategies} />
+            </div>
+        )}
+
+        {/* OLD SCHEMA: Market & Technical Risks */}
+        {(data.market_risks || data.technical_risks) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.market_risks && data.market_risks.length > 0 && (
+              <div className="bg-orange-500/5 border border-orange-500/10 rounded-xl p-4">
+                <h5 className="text-xs font-semibold text-orange-400 mb-3 uppercase tracking-wider">Market Risks</h5>
+                <div className="space-y-3">
+                  {data.market_risks.map((risk: any, i: number) => (
+                    <div key={i} className="bg-secondary/30 rounded-lg p-2.5">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold">{risk.risk_factor}</span>
+                        <div className="flex gap-1">
+                          <RiskBadge level={risk.impact_level} />
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {data.technical_risks && data.technical_risks.length > 0 && (
+              <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4">
+                <h5 className="text-xs font-semibold text-blue-400 mb-3 uppercase tracking-wider">Technical Risks</h5>
+                <div className="space-y-3">
+                  {data.technical_risks.map((risk: any, i: number) => (
+                    <div key={i} className="bg-secondary/30 rounded-lg p-2.5">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold">{risk.risk_factor}</span>
+                        <div className="flex gap-1">
+                          <RiskBadge level={risk.impact_level} />
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* OLD SCHEMA: Operational & Financial Risks */}
+        {(data.operational_risks || data.financial_risks) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.operational_risks && data.operational_risks.length > 0 && (
+              <div className="bg-secondary/30 rounded-xl p-4">
+                <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Operational Risks</h5>
+                <div className="space-y-3">
+                  {data.operational_risks.map((risk: any, i: number) => (
+                    <div key={i} className="bg-secondary/20 rounded-lg p-2.5">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold">{risk.risk_factor}</span>
                         <RiskBadge level={risk.impact_level} />
                       </div>
+                      <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-          {data.technical_risks && data.technical_risks.length > 0 && (
-            <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4">
-              <h5 className="text-xs font-semibold text-blue-400 mb-3 uppercase tracking-wider">Technical Risks</h5>
-              <div className="space-y-3">
-                {data.technical_risks.map((risk: any, i: number) => (
-                  <div key={i} className="bg-secondary/30 rounded-lg p-2.5">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs font-bold">{risk.risk_factor}</span>
-                      <div className="flex gap-1">
+            )}
+            {data.financial_risks && data.financial_risks.length > 0 && (
+              <div className="bg-secondary/30 rounded-xl p-4">
+                <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Financial Risks</h5>
+                <div className="space-y-3">
+                  {data.financial_risks.map((risk: any, i: number) => (
+                    <div key={i} className="bg-secondary/20 rounded-lg p-2.5">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold">{risk.risk_factor}</span>
                         <RiskBadge level={risk.impact_level} />
                       </div>
+                      <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
-        {/* Operational & Financial Risks */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {data.operational_risks && data.operational_risks.length > 0 && (
-            <div className="bg-secondary/30 rounded-xl p-4">
-              <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Operational Risks</h5>
-              <div className="space-y-3">
-                {data.operational_risks.map((risk: any, i: number) => (
-                  <div key={i} className="bg-secondary/20 rounded-lg p-2.5">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs font-bold">{risk.risk_factor}</span>
-                      <RiskBadge level={risk.impact_level} />
+        {/* NEW SCHEMA: Dependency & Market Timing Risks */}
+        {(data.dependency_risks || data.market_timing_risks) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.dependency_risks && data.dependency_risks.length > 0 && (
+              <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4">
+                <h5 className="text-xs font-semibold text-blue-400 mb-3 uppercase tracking-wider">Dependency Risks</h5>
+                <div className="space-y-3">
+                  {data.dependency_risks.map((risk: any, i: number) => (
+                    <div key={i} className="bg-secondary/30 rounded-lg p-2.5">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold">{risk.dependency}</span>
+                        <RiskBadge level={risk.risk_level} />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{risk.contingency}</p>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-          {data.financial_risks && data.financial_risks.length > 0 && (
-            <div className="bg-secondary/30 rounded-xl p-4">
-              <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Financial Risks</h5>
-              <div className="space-y-3">
-                {data.financial_risks.map((risk: any, i: number) => (
-                  <div key={i} className="bg-secondary/20 rounded-lg p-2.5">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs font-bold">{risk.risk_factor}</span>
-                      <RiskBadge level={risk.impact_level} />
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">{risk.mitigation_strategy}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+            {data.market_timing_risks && data.market_timing_risks.length > 0 && (
+               <div className="bg-secondary/30 rounded-xl p-4">
+                  <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Market Timing Risks</h5>
+                  <BulletList items={data.market_timing_risks} />
+               </div>
+            )}
+          </div>
+        )}
 
-        {/* Contingency Plans */}
+        {/* Contingency Plans (supports both Old and New schemas) */}
         {data.contingency_plans && data.contingency_plans.length > 0 && (
           <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
             <h5 className="text-xs font-semibold text-red-400 mb-3 uppercase tracking-wider">Contingency Plans</h5>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                {data.contingency_plans.map((plan: any, i: number) => (
                  <div key={i} className="bg-red-500/5 rounded-lg p-3 border border-red-500/10">
-                    <p className="text-xs font-bold text-red-400 mb-1">{plan.scenario}</p>
-                    <p className="text-[10px] text-muted-foreground">{plan.action_plan}</p>
+                    <p className="text-xs font-bold text-red-400 mb-1">{plan.scenario || plan.trigger}</p>
+                    {plan.action_plan ? (
+                        <p className="text-[10px] text-muted-foreground">{plan.action_plan}</p>
+                    ) : (
+                        <BulletList items={plan.actions} className="mb-2" />
+                    )}
+                    {plan.pivot_option && (
+                        <p className="text-[10px] text-red-300 italic mt-2">Pivot: {plan.pivot_option}</p>
+                    )}
                  </div>
                ))}
             </div>
           </div>
         )}
+
+        {/* NEW SCHEMA: Kill Switches */}
+        {data.kill_switches && data.kill_switches.length > 0 && (
+            <div className="bg-red-900/10 border border-red-500/30 rounded-xl p-4">
+                <h5 className="text-xs font-semibold text-red-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+                   <AlertTriangle className="w-3 h-3" /> Kill Switches
+                </h5>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                   {data.kill_switches.map((ks: any, i: number) => (
+                       <div key={i} className="bg-red-950/20 rounded-lg p-3 border border-red-500/20">
+                           <p className="text-xs font-bold text-red-400 mb-1">{ks.indicator}</p>
+                           <p className="text-[10px] text-muted-foreground mb-1">Threshold: <span className="text-foreground">{ks.threshold}</span></p>
+                           <p className="text-[10px] text-red-300 font-semibold uppercase">{ks.action}</p>
+                       </div>
+                   ))}
+                </div>
+            </div>
+        )}
+
       </div>
     </ModuleSection>
   );
@@ -798,6 +1127,107 @@ function GTMStrategyModule({ data }: { data: any }) {
         </div>
       )}
 
+      {/* Pricing & Positioning */}
+      {data.pricing_positioning && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium mb-3">Pricing & Positioning</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+             <div className="bg-secondary/30 rounded-xl p-3">
+               <p className="text-[10px] font-semibold text-primary uppercase">Pricing Strategy</p>
+               <p className="text-sm mt-1">{data.pricing_positioning.pricing_strategy || data.pricing_positioning.price_point}</p>
+             </div>
+             <div className="bg-secondary/30 rounded-xl p-3">
+               <p className="text-[10px] font-semibold text-primary uppercase">Price Points</p>
+               <p className="text-sm mt-1">{Array.isArray(data.pricing_positioning.price_points) ? data.pricing_positioning.price_points.join(', ') : (data.pricing_positioning.price_points || data.pricing_positioning.value_metric)}</p>
+             </div>
+             <div className="bg-secondary/30 rounded-xl p-3">
+               <p className="text-[10px] font-semibold text-primary uppercase">Positioning</p>
+               <p className="text-sm mt-1">{data.pricing_positioning.positioning_statement || data.pricing_positioning.discount_strategy}</p>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Content & SEO Strategy */}
+      {data.content_seo_strategy && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium mb-3">Content & SEO Strategy</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* target_keywords (new schema) or seo_keywords (old schema) */}
+            {(Array.isArray(data.content_seo_strategy.target_keywords) || Array.isArray(data.content_seo_strategy.seo_keywords)) && (
+              <div className="bg-secondary/30 rounded-xl p-4">
+                <h5 className="text-xs font-semibold text-primary mb-2">Target SEO Keywords</h5>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {(data.content_seo_strategy.target_keywords || data.content_seo_strategy.seo_keywords || []).map((kw: string, i: number) => (
+                    <span key={i} className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded">{kw}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* content_types (new schema) or content_pillars (old schema) */}
+            {(Array.isArray(data.content_seo_strategy.content_types) || Array.isArray(data.content_seo_strategy.content_pillars)) && (
+              <div className="bg-secondary/30 rounded-xl p-4">
+                <h5 className="text-xs font-semibold text-primary mb-2">Content Types</h5>
+                <BulletList items={data.content_seo_strategy.content_types || data.content_seo_strategy.content_pillars} />
+              </div>
+            )}
+            {/* publishing_frequency (new schema) */}
+            {data.content_seo_strategy.publishing_frequency && (
+              <div className="bg-secondary/30 rounded-xl p-4">
+                <h5 className="text-xs font-semibold text-primary mb-2">Publishing Frequency</h5>
+                <p className="text-xs text-muted-foreground">{data.content_seo_strategy.publishing_frequency}</p>
+              </div>
+            )}
+            {/* distribution_channels (old schema) */}
+            {Array.isArray(data.content_seo_strategy.distribution_channels) && data.content_seo_strategy.distribution_channels.length > 0 && (
+              <div className="bg-secondary/30 rounded-xl p-4">
+                <h5 className="text-xs font-semibold text-primary mb-2">Distribution Channels</h5>
+                <BulletList items={data.content_seo_strategy.distribution_channels} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Growth Hacking */}
+      {data.growth_hacking && data.growth_hacking.length > 0 && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium mb-3">Growth Hacking Tactics</h4>
+          <div className="space-y-3">
+             {data.growth_hacking.map((tactic: any, i: number) => (
+                <div key={i} className="bg-secondary/30 rounded-xl p-4 border border-green-500/10">
+                   <p className="text-xs font-bold text-green-400 mb-1">{tactic.tactic || tactic.tactic_name || tactic.name}</p>
+                   <p className="text-xs text-muted-foreground mb-2">{tactic.description || tactic.implementation}</p>
+                   <div className="flex gap-2 mb-2 items-center">
+                     {tactic.expected_impact ? (
+                       <RiskBadge level={tactic.expected_impact} />
+                     ) : tactic.expected_result ? (
+                       <span className="text-[10px] font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">Result: {tactic.expected_result}</span>
+                     ) : null}
+                     {tactic.cost_effort && <span className="text-[10px] text-muted-foreground">Effort: {tactic.cost_effort}</span>}
+                   </div>
+                </div>
+             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Partnerships */}
+      {data.partnerships && data.partnerships.length > 0 && (
+        <div className="mb-6">
+          <h4 className="text-sm font-medium mb-3">Strategic Partnerships</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+             {data.partnerships.map((partner: any, i: number) => (
+                <div key={i} className="bg-secondary/20 rounded-xl p-4">
+                   <p className="text-xs font-bold text-primary mb-1">{partner.partner_type}</p>
+                   <p className="text-[10px] text-muted-foreground mb-2">Partners: {partner.potential_partners || partner.target_partners}</p>
+                   <p className="text-xs border-t border-white/5 pt-2 mt-2">{partner.value_exchange}</p>
+                </div>
+             ))}
+          </div>
+        </div>
+      )}
+
       {/* GTM Phases (legacy support for other data formats) */}
       {data.phases && (
         <div className="mb-6">
@@ -860,25 +1290,52 @@ function BusinessModelCanvasModule({ data }: { data: any }) {
 
   return (
     <ModuleSection title="Business Model Canvas" icon={Building2}>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {canvasKeys.map(key => {
-          const items = data[key];
+          // Backward compatibility for key_partnerships
+          const items = data[key] || (key === 'key_partnerships' ? data.key_partners : null);
           if (!items || !Array.isArray(items)) return null;
 
           return (
-            <div key={key} className="bg-secondary/30 rounded-xl p-4">
-              <h5 className="text-xs font-medium text-primary uppercase tracking-wider mb-2">
+            <div key={key} className="bg-secondary/30 rounded-xl p-4 border border-primary/5">
+              <h5 className="text-[10px] font-bold text-primary uppercase tracking-wider mb-3">
                 {formatKey(key)}
               </h5>
-              <ul className="space-y-1">
-                {items.slice(0, 5).map((item: string, i: number) => (
-                  <li key={i} className="text-xs text-muted-foreground">• {item}</li>
+              <ul className="space-y-2">
+                {items.slice(0, 6).map((item: string, i: number) => (
+                  <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>{item}</span>
+                  </li>
                 ))}
               </ul>
             </div>
           );
         })}
       </div>
+
+      {(data.market_adjustments || data.key_metrics || data.bmc_highlights) && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {data.market_adjustments && (
+            <div className="bg-blue-500/5 rounded-xl p-4 border border-blue-500/10">
+              <h5 className="text-xs font-bold text-blue-400 uppercase mb-3">Market Adjustments</h5>
+              <BulletList items={data.market_adjustments} />
+            </div>
+          )}
+          {data.key_metrics && (
+            <div className="bg-green-500/5 rounded-xl p-4 border border-green-500/10">
+              <h5 className="text-xs font-bold text-green-400 uppercase mb-3">Key Metrics</h5>
+              <BulletList items={data.key_metrics} />
+            </div>
+          )}
+          {data.bmc_highlights && (
+            <div className="bg-primary/5 rounded-xl p-4 border border-primary/10">
+              <h5 className="text-xs font-bold text-primary uppercase mb-3">BMC Highlights</h5>
+              <BulletList items={data.bmc_highlights} />
+            </div>
+          )}
+        </div>
+      )}
     </ModuleSection>
   );
 }
@@ -889,22 +1346,43 @@ function InvestorPitchDeckModule({ data }: { data: any }) {
 
   return (
     <ModuleSection title="Investor Pitch Deck" icon={Briefcase}>
+      {data.strategic_narrative && (
+        <div className="mb-6 bg-primary/5 border border-primary/20 rounded-xl p-4">
+          <h5 className="text-xs font-bold text-primary uppercase mb-2">Strategic Narrative</h5>
+          <p className="text-sm text-muted-foreground leading-relaxed italic">"{data.strategic_narrative}"</p>
+        </div>
+      )}
+
       {data.slides && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {data.slides.map((slide: any, i: number) => (
-            <div key={i} className="bg-secondary/30 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center">
-                  <span className="text-xs font-bold text-primary">{i + 1}</span>
+            <div key={i} className="bg-secondary/30 rounded-xl p-5 border border-white/5 hover:border-primary/20 transition-colors">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+                  <span className="text-xs font-bold text-primary">{slide.slide_number || i + 1}</span>
                 </div>
-                <h5 className="text-sm font-medium">{slide.slide_title}</h5>
+                <h5 className="text-sm font-bold text-foreground">{slide.title || slide.slide_title}</h5>
               </div>
-              <p className="text-xs text-muted-foreground">{slide.key_message}</p>
-              {slide.talking_points && (
-                <div className="mt-2">
-                  <BulletList items={slide.talking_points.slice(0, 2)} />
-                </div>
-              )}
+              
+              <div className="space-y-3">
+                {(slide.content_bullets || slide.talking_points) && (
+                  <BulletList items={slide.content_bullets || slide.talking_points} />
+                )}
+                
+                {(slide.visual_suggestion || slide.key_message) && (
+                  <div className="bg-secondary/50 rounded-lg p-3 border border-white/5">
+                    <p className="text-[10px] font-bold text-primary uppercase mb-1">Visual Suggestion</p>
+                    <p className="text-[11px] text-muted-foreground">{slide.visual_suggestion || slide.key_message}</p>
+                  </div>
+                )}
+
+                {slide.speaker_notes && (
+                  <div className="bg-blue-500/5 rounded-lg p-3 border border-blue-500/10">
+                    <p className="text-[10px] font-bold text-blue-400 uppercase mb-1">Speaker Notes</p>
+                    <p className="text-[11px] text-blue-300/80">{slide.speaker_notes}</p>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -921,6 +1399,171 @@ function InvestorPitchDeckModule({ data }: { data: any }) {
   );
 }
 
+// Funding Strategy Module
+function FundingStrategyModule({ data }: { data: any }) {
+  if (!data) return null;
+
+  return (
+    <ModuleSection title="Funding Strategy" icon={DollarSign}>
+      <div className="space-y-6">
+        
+        {/* Legacy Schema */}
+        {(data.funding_requirements || data.suggested_funding_sources) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+             <div className="bg-primary/10 border border-primary/20 rounded-xl p-5">
+                <h4 className="text-xs font-semibold text-primary mb-2 uppercase tracking-wider">Capital Requirements</h4>
+                <p className="text-xl font-bold mb-2">{data.funding_requirements || 'N/A'}</p>
+                <p className="text-xs text-muted-foreground italic">Target for next 12-18 months</p>
+             </div>
+             <div className="bg-secondary/30 rounded-xl p-5">
+                <h4 className="text-xs font-semibold mb-3 uppercase tracking-wider">Suggested Sources</h4>
+                <BulletList items={data.suggested_funding_sources} />
+             </div>
+          </div>
+        )}
+
+        {(data.investor_profile && typeof data.investor_profile === 'string' || data.exit_strategy) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+             {data.investor_profile && typeof data.investor_profile === 'string' && (
+               <div className="bg-secondary/30 rounded-xl p-4">
+                  <h4 className="text-xs font-semibold mb-2 flex items-center gap-2">
+                    <Users className="w-3.5 h-3.5 text-primary" /> Investor Profile
+                  </h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{data.investor_profile}</p>
+               </div>
+             )}
+             {data.exit_strategy && (
+               <div className="bg-secondary/30 rounded-xl p-4">
+                  <h4 className="text-xs font-semibold mb-2 flex items-center gap-2">
+                    <TrendingUp className="w-3.5 h-3.5 text-primary" /> Exit Strategy
+                  </h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{data.exit_strategy}</p>
+               </div>
+             )}
+          </div>
+        )}
+
+        {/* New Schema: Funding Options */}
+        {data.funding_options && data.funding_options.length > 0 && (
+          <div className="mb-6">
+            <h4 className="text-sm font-medium mb-3">Funding Options Analysis</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {data.funding_options.map((option: any, i: number) => (
+                <div key={i} className="bg-secondary/20 rounded-xl p-4 border border-white/5">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-bold text-primary text-sm">{option.option_type}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                      option.suitability.toLowerCase() === 'high' ? 'bg-green-500/20 text-green-400' :
+                      option.suitability.toLowerCase() === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                      'bg-red-500/20 text-red-400'
+                    }`}>Suitability: {option.suitability}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <div>
+                      <p className="text-[10px] font-semibold text-green-400 mb-1">Pros</p>
+                      <BulletList items={option.pros} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold text-red-400 mb-1">Cons</p>
+                      <BulletList items={option.cons} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* New Schema: Investor Landscape & Timeline */}
+        {(data.investor_landscape && typeof data.investor_landscape === 'object' || data.funding_timeline) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {data.investor_landscape && typeof data.investor_landscape === 'object' && (
+              <div className="bg-secondary/30 rounded-xl p-4">
+                <h4 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Investor Landscape</h4>
+                {data.investor_landscape.investor_types && data.investor_landscape.investor_types.length > 0 && (
+                  <div className="mb-2">
+                    <p className="text-[10px] font-bold text-muted-foreground mb-1">Target Investors</p>
+                    <BulletList items={data.investor_landscape.investor_types} />
+                  </div>
+                )}
+                {data.investor_landscape.vcs && data.investor_landscape.vcs.length > 0 && (
+                  <div className="mb-2">
+                    <p className="text-[10px] font-bold text-muted-foreground mb-1">Relevant VCs</p>
+                    <BulletList items={data.investor_landscape.vcs} />
+                  </div>
+                )}
+                {data.investor_landscape.angel_networks && data.investor_landscape.angel_networks.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold text-muted-foreground mb-1">Angel Networks</p>
+                    <BulletList items={data.investor_landscape.angel_networks} />
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {data.funding_timeline && (
+              <div className="bg-secondary/30 rounded-xl p-4">
+                <h4 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Funding Timeline</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center bg-secondary/50 p-2 rounded">
+                    <span className="text-xs font-medium">Pre-Seed</span>
+                    <span className="text-[10px] text-muted-foreground">{data.funding_timeline.pre_seed_timing}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-secondary/50 p-2 rounded">
+                    <span className="text-xs font-medium">Seed</span>
+                    <span className="text-[10px] text-muted-foreground">{data.funding_timeline.seed_timing}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-secondary/50 p-2 rounded">
+                    <span className="text-xs font-medium">Series A</span>
+                    <span className="text-[10px] text-muted-foreground">{data.funding_timeline.series_a_timing}</span>
+                  </div>
+                  {data.funding_timeline.milestones_for_next_round && data.funding_timeline.milestones_for_next_round.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-[10px] font-bold text-muted-foreground mb-1">Milestones for Next Round</p>
+                      <BulletList items={data.funding_timeline.milestones_for_next_round} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* New Schema: Valuation Benchmarks */}
+        {data.valuation_benchmarks && (
+          <div className="bg-primary/5 border border-primary/10 rounded-xl p-4">
+            <h4 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Valuation Benchmarks</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-secondary/30 p-3 rounded-lg text-center">
+                <p className="text-[10px] font-bold text-muted-foreground mb-1">Pre-Seed Range</p>
+                <p className="text-sm font-bold text-green-400">{data.valuation_benchmarks.pre_seed_range}</p>
+              </div>
+              <div className="bg-secondary/30 p-3 rounded-lg text-center">
+                <p className="text-[10px] font-bold text-muted-foreground mb-1">Seed Range</p>
+                <p className="text-sm font-bold text-green-400">{data.valuation_benchmarks.seed_range}</p>
+              </div>
+              <div className="bg-secondary/30 p-3 rounded-lg text-center">
+                <p className="text-[10px] font-bold text-muted-foreground mb-1">Equity Guidance</p>
+                <p className="text-xs text-primary">{data.valuation_benchmarks.equity_guidance}</p>
+              </div>
+            </div>
+            {data.valuation_benchmarks.comparable_companies && data.valuation_benchmarks.comparable_companies.length > 0 && (
+              <div className="mt-3">
+                <p className="text-[10px] font-bold text-muted-foreground mb-1">Comparable Valuations</p>
+                <div className="flex flex-wrap gap-2">
+                  {data.valuation_benchmarks.comparable_companies.map((comp: string, idx: number) => (
+                    <span key={idx} className="text-[10px] bg-secondary/50 px-2 py-1 rounded">{comp}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </ModuleSection>
+  );
+}
+
 const premiumSections = [
   { name: 'Business Model Canvas', tier: 'Basic+' },
   { name: 'Market Analysis', tier: 'Standard+' },
@@ -928,6 +1571,7 @@ const premiumSections = [
   { name: 'Financial Projections', tier: 'Standard+' },
   { name: 'Technical Roadmap', tier: 'Standard+' },
   { name: 'Go-to-Market Strategy', tier: 'Premium' },
+  { name: 'Funding Strategy', tier: 'Premium' },
   { name: 'Investor Pitch Deck', tier: 'Premium' },
   { name: 'Risk Analysis', tier: 'Standard+' },
 ];
@@ -938,6 +1582,7 @@ export default function Report() {
   const navigate = useNavigate();
   const tier = searchParams.get('tier') || 'free';
   const isPreview = searchParams.get('preview') === 'true';
+  const { isAdmin } = useAuth();
 
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -1084,6 +1729,33 @@ export default function Report() {
             Retry
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if ((report.status === 'waiting_for_admin' || report.status === 'waiting_for_admin_approval') && !isAdmin) {
+    return (
+      <div className="min-h-screen relative flex flex-col">
+        <FloatingOrbs />
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center relative z-10 px-4 pt-20">
+          <div className="text-center max-w-md glass p-8 rounded-2xl border border-amber-500/30 relative overflow-hidden shadow-2xl">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-400 to-amber-600"></div>
+            <div className="w-20 h-20 mx-auto bg-amber-500/10 rounded-full flex items-center justify-center mb-6">
+              <Shield className="w-10 h-10 text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.5)] animate-pulse" />
+            </div>
+            <h2 className="text-2xl font-bold mb-3 text-white tracking-tight">Pending Expert Review</h2>
+            <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
+              Your detailed validation report has been generated and is currently under review by our expert team. We manually verify all deep-analysis reports to ensure maximum accuracy and actionable insights.
+            </p>
+            <div className="bg-amber-500/10 rounded-xl p-4 border border-amber-500/20">
+               <p className="text-xs text-amber-300 font-medium flex items-center justify-center gap-2">
+                 <AlertTriangle className="w-4 h-4" /> Usually takes 1-2 hours.
+               </p>
+            </div>
+          </div>
+        </div>
+        <Footer />
       </div>
     );
   }
@@ -1496,7 +2168,23 @@ export default function Report() {
             </ModuleSection>
           )}
 
-          {/* Business Model Canvas */}
+          {isEditing && editMode === 'visual' ? (
+            <ModuleSection title="Structured Report Editor" icon={Edit3}>
+              <div className="bg-black/40 border border-white/10 rounded-xl p-6 overflow-auto max-h-[800px]">
+                <p className="text-sm text-muted-foreground mb-6">
+                  Here you can edit every single part of the report. This visual editor maps exactly to the underlying data structure. 
+                  Please be careful to only modify the values, not the keys.
+                </p>
+                <RecursiveEditor 
+                  data={editedData} 
+                  onChange={(newData) => setEditedData(newData)} 
+                  name="Complete Report" 
+                />
+              </div>
+            </ModuleSection>
+          ) : (
+            <>
+              {/* Business Model Canvas */}
           {(rd?.business_model_canvas || modules.business_model_canvas) && (
             <BusinessModelCanvasModule data={rd?.business_model_canvas || modules.business_model_canvas} />
           )}
@@ -1599,44 +2287,15 @@ export default function Report() {
 
           {/* Funding Strategy */}
           {modules.funding && (
-            <ModuleSection title="Funding Strategy" icon={DollarSign}>
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div className="bg-primary/10 border border-primary/20 rounded-xl p-5">
-                      <h4 className="text-xs font-semibold text-primary mb-2 uppercase tracking-wider">Capital Requirements</h4>
-                      <p className="text-xl font-bold mb-2">{modules.funding.funding_requirements}</p>
-                      <p className="text-xs text-muted-foreground italic">Target for next 12-18 months</p>
-                   </div>
-                   <div className="bg-secondary/30 rounded-xl p-5">
-                      <h4 className="text-xs font-semibold mb-3 uppercase tracking-wider">Suggested Sources</h4>
-                      <BulletList items={modules.funding.suggested_funding_sources} />
-                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div className="bg-secondary/30 rounded-xl p-4">
-                      <h4 className="text-xs font-semibold mb-2 flex items-center gap-2">
-                        <Users className="w-3.5 h-3.5 text-primary" /> Investor Profile
-                      </h4>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{modules.funding.investor_profile}</p>
-                   </div>
-                   <div className="bg-secondary/30 rounded-xl p-4">
-                      <h4 className="text-xs font-semibold mb-2 flex items-center gap-2">
-                        <TrendingUp className="w-3.5 h-3.5 text-primary" /> Exit Strategy
-                      </h4>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{modules.funding.exit_strategy}</p>
-                   </div>
-                </div>
-              </div>
-            </ModuleSection>
+            <FundingStrategyModule data={modules.funding} />
           )}
 
           {/* Implementation Roadmap */}
           {modules.roadmap && (
             <ModuleSection title="Implementation Roadmap" icon={Target}>
               <div className="space-y-6">
-                {/* Phases */}
-                {modules.roadmap.phases && (
+                {/* Old Schema: Phases */}
+                {modules.roadmap.phases && modules.roadmap.phases.length > 0 && (
                   <div className="space-y-3">
                     {modules.roadmap.phases.map((phase: any, i: number) => (
                       <div key={i} className="flex items-start gap-4 bg-secondary/30 rounded-xl p-4 border border-secondary">
@@ -1660,20 +2319,112 @@ export default function Report() {
                   </div>
                 )}
 
-                {/* Goals & Vision */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-secondary/30 rounded-xl p-4">
-                    <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Short-Term Goals (0-3 Months)</h5>
-                    <BulletList items={modules.roadmap.short_term_goals} />
+                {/* New Schema: 90-Day Plan */}
+                {modules.roadmap.ninety_day_plan && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-3 flex items-center gap-2"><Target className="w-4 h-4 text-primary" /> 90-Day Launch Plan</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {[
+                        { label: 'Week 1-2', items: modules.roadmap.ninety_day_plan.week_1_2 },
+                        { label: 'Week 3-4', items: modules.roadmap.ninety_day_plan.week_3_4 },
+                        { label: 'Week 5-6', items: modules.roadmap.ninety_day_plan.week_5_6 },
+                        { label: 'Week 7-8', items: modules.roadmap.ninety_day_plan.week_7_8 },
+                        { label: 'Week 9-10', items: modules.roadmap.ninety_day_plan.week_9_10 },
+                        { label: 'Week 11-12', items: modules.roadmap.ninety_day_plan.week_11_12 },
+                      ].filter(w => w.items && w.items.length > 0).map((w, i) => (
+                        <div key={i} className="bg-secondary/30 rounded-xl p-3">
+                          <p className="text-xs font-bold text-primary mb-2">{w.label}</p>
+                          <BulletList items={w.items} />
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                )}
+
+                {/* New Schema: 6-Month Plan */}
+                {modules.roadmap.six_month_plan && (
                   <div className="bg-secondary/30 rounded-xl p-4">
-                    <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Long-Term Vision (3-5 Years)</h5>
-                    <p className="text-xs text-muted-foreground leading-relaxed italic">"{modules.roadmap.long_term_vision}"</p>
+                    <h4 className="text-sm font-medium mb-3">6-Month Growth Plan</h4>
+                    {modules.roadmap.six_month_plan.month_4_6 && modules.roadmap.six_month_plan.month_4_6.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs font-semibold text-primary mb-1">Months 4-6</p>
+                        <BulletList items={modules.roadmap.six_month_plan.month_4_6} />
+                      </div>
+                    )}
+                    {modules.roadmap.six_month_plan.growth_targets && (
+                      <p className="text-xs text-muted-foreground"><strong className="text-foreground">Growth Target:</strong> {modules.roadmap.six_month_plan.growth_targets}</p>
+                    )}
                   </div>
-                </div>
+                )}
+
+                {/* New Schema: Year 1 Objectives */}
+                {modules.roadmap.year_one_objectives && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
+                      <h5 className="text-xs font-semibold text-primary mb-2 uppercase tracking-wider">Year 1 Targets</h5>
+                      {modules.roadmap.year_one_objectives.revenue_target && (
+                        <p className="text-xs mb-1"><strong>Revenue:</strong> {modules.roadmap.year_one_objectives.revenue_target}</p>
+                      )}
+                      {modules.roadmap.year_one_objectives.customer_target && (
+                        <p className="text-xs"><strong>Customers:</strong> {modules.roadmap.year_one_objectives.customer_target}</p>
+                      )}
+                    </div>
+                    {modules.roadmap.year_one_objectives.key_objectives && modules.roadmap.year_one_objectives.key_objectives.length > 0 && (
+                      <div className="bg-secondary/30 rounded-xl p-4">
+                        <h5 className="text-xs font-semibold mb-2">Key Objectives</h5>
+                        <BulletList items={modules.roadmap.year_one_objectives.key_objectives} />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Old Schema: Short-term goals & long-term vision */}
+                {(modules.roadmap.short_term_goals || modules.roadmap.long_term_vision) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {modules.roadmap.short_term_goals && (
+                      <div className="bg-secondary/30 rounded-xl p-4">
+                        <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Short-Term Goals (0-3 Months)</h5>
+                        <BulletList items={modules.roadmap.short_term_goals} />
+                      </div>
+                    )}
+                    {modules.roadmap.long_term_vision && (
+                      <div className="bg-secondary/30 rounded-xl p-4">
+                        <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Long-Term Vision (3-5 Years)</h5>
+                        <p className="text-xs text-muted-foreground leading-relaxed italic">"{modules.roadmap.long_term_vision}"</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Success Metrics */}
+                {modules.roadmap.success_metrics && (
+                  <div className="bg-secondary/20 rounded-xl p-4">
+                    <h5 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider">Success Metrics</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {modules.roadmap.success_metrics.weekly_metrics && modules.roadmap.success_metrics.weekly_metrics.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-bold text-muted-foreground mb-1">Weekly</p>
+                          <BulletList items={modules.roadmap.success_metrics.weekly_metrics} />
+                        </div>
+                      )}
+                      {modules.roadmap.success_metrics.monthly_metrics && modules.roadmap.success_metrics.monthly_metrics.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-bold text-muted-foreground mb-1">Monthly</p>
+                          <BulletList items={modules.roadmap.success_metrics.monthly_metrics} />
+                        </div>
+                      )}
+                      {modules.roadmap.success_metrics.quarterly_metrics && modules.roadmap.success_metrics.quarterly_metrics.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-bold text-muted-foreground mb-1">Quarterly</p>
+                          <BulletList items={modules.roadmap.success_metrics.quarterly_metrics} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Roadmap Risks */}
-                {modules.roadmap.key_risks && (
+                {modules.roadmap.key_risks && modules.roadmap.key_risks.length > 0 && (
                   <div className="bg-red-500/5 border border-red-500/10 rounded-xl p-4">
                     <h5 className="text-xs font-semibold text-red-400 mb-2">Execution Risks & Blockers</h5>
                     <BulletList items={modules.roadmap.key_risks} />
@@ -1687,6 +2438,8 @@ export default function Report() {
           {/* Investor Pitch Deck */}
           {modules.investor_pitch_deck && (
             <InvestorPitchDeckModule data={modules.investor_pitch_deck} />
+          )}
+            </>
           )}
 
           {/* Upgrade Call to Action for Free Tier */}

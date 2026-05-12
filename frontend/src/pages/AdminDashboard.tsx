@@ -10,11 +10,12 @@ import { Link } from 'react-router-dom';
 
 interface Session {
   thread_id: string;
-  description: string;
+  idea_description: string;
   status: string;
   tier: string;
   user_id: string;
   created_at: string;
+  reports?: any;
 }
 
 export default function AdminDashboard() {
@@ -26,8 +27,14 @@ export default function AdminDashboard() {
     async function fetchPendingSessions() {
       const { data, error } = await supabase
         .from('validation_sessions')
-        .select('*')
-        .eq('status', 'waiting_for_admin_approval')
+        .select(`
+          *,
+          reports!reports_thread_id_fkey (
+            report_data,
+            tier
+          )
+        `)
+        .in('status', ['waiting_for_admin', 'waiting_for_admin_approval'])
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -121,8 +128,12 @@ export default function AdminDashboard() {
                         Requested {new Date(session.created_at).toLocaleString()}
                       </span>
                     </div>
-                    <h3 className="text-lg font-semibold mb-1">
-                      {session.description}
+                    <h3 className="text-xl font-bold mb-1 text-foreground">
+                      {(() => {
+                        const reports = Array.isArray(session.reports) ? session.reports : (session.reports ? [session.reports] : []);
+                        const currentReport = reports.find((r: any) => r.tier === session.tier);
+                        return currentReport?.report_data?.title || (session.idea_description?.length > 100 ? session.idea_description.substring(0, 100) + '...' : session.idea_description);
+                      })()}
                     </h3>
                     <p className="text-xs text-muted-foreground font-mono truncate">
                       Thread ID: {session.thread_id} | User ID: {session.user_id}

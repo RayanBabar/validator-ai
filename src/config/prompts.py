@@ -557,7 +557,6 @@ Consider: What did the founder reveal about their background and commitment duri
 
 ## STEP 3: GENERATE OUTPUT (Per Tiers.docx Free Tier Format)
 
-OUTPUT LENGTH CONSTRAINT: Total output must be ~300 words max (Half A4 page). Be concise.
 """
     + PDF_COMPATIBILITY_NOTE
     + """

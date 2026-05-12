@@ -21,7 +21,7 @@ class TierType(str, Enum):
 # INTERVIEW CONFIGURATION
 # ===========================================
 MIN_INTERVIEW_QUESTIONS = 1   # Minimum clarifying questions
-MAX_INTERVIEW_QUESTIONS = 5  # Maximum clarifying questions based on complexity
+MAX_INTERVIEW_QUESTIONS = 1  # Maximum clarifying questions based on complexity
 
 # ===========================================
 # SEARCH CONFIGURATION

@@ -9,7 +9,8 @@ import json
 from typing import Dict, Any, List, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from src.models.outputs import _parse_json_string_field
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,11 @@ class QualityCheckResult(BaseModel):
     class Config:
         populate_by_name = True
 
+    @field_validator('issues', 'suggestions', mode='before')
+    @classmethod
+    def parse_lists(cls, v):
+        return _parse_json_string_field(v)
+
 
 class Inconsistency(BaseModel):
     """Single inconsistency between modules."""
@@ -44,6 +50,11 @@ class ConsistencyCheckResult(BaseModel):
 
     class Config:
         populate_by_name = True
+
+    @field_validator('recommendations', mode='before')
+    @classmethod
+    def parse_lists(cls, v):
+        return _parse_json_string_field(v)
 
 
 # ===========================================

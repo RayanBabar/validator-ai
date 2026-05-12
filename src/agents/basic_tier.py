@@ -205,7 +205,7 @@ You MUST align your analysis with these decided constraints:
         await send_report_webhook(
             thread_id=thread_id, report_score=score, report_metadata=report.model_dump()
         )
-        await update_session_status(thread_id, "report_ready")
+        await update_session_status(thread_id, "waiting_for_admin")
 
     return {
         "final_report": report.model_dump(),

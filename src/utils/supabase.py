@@ -105,3 +105,19 @@ async def get_all_reports_for_thread(thread_id: str) -> list[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error fetching all reports for {thread_id}: {e}")
         return []
+
+
+async def get_session_status(thread_id: str) -> Optional[str]:
+    """Fetch current status from validation_sessions table."""
+    try:
+        async with await get_supabase_client() as client:
+            response = await client.get(
+                f"/rest/v1/validation_sessions?thread_id=eq.{thread_id}&select=status"
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data[0]["status"] if data else None
+            return None
+    except Exception as e:
+        logger.error(f"Error fetching session status for {thread_id}: {e}")
+        return None

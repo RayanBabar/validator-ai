@@ -61,16 +61,25 @@ def _parse_json_string_field(value: Any) -> Any:
     """
     If a value is a JSON string (common LLM error for nested models),
     parse it into a dict/list and normalize keys to snake_case.
+    Includes recovery for trailing commas.
     """
     if isinstance(value, str):
         stripped = value.strip()
         if stripped.startswith('{') or stripped.startswith('['):
             try:
+                # 1. Try standard parse
                 parsed = json.loads(stripped)
-                logger.debug(f"Parsed and normalized JSON string field -> {type(parsed).__name__}")
                 return _normalize_keys(parsed)
             except json.JSONDecodeError:
-                pass
+                # 2. Try recovery for trailing commas
+                try:
+                    import re
+                    repaired = re.sub(r',\s*\]', ']', stripped)
+                    repaired = re.sub(r',\s*\}', '}', repaired)
+                    parsed = json.loads(repaired)
+                    return _normalize_keys(parsed)
+                except:
+                    pass
     return value
 
 
@@ -123,6 +132,14 @@ class InvestorPitchDeck(BaseModel):
     """Complete 12-slide Investor Pitch Deck content"""
     slides: List[SlideContent] = Field(..., min_length=12, max_length=12, description="The 12 standard VC slides")
     strategic_narrative: str = Field(..., description="Brief explanation of the overall story arc")
+
+    @model_validator(mode='before')
+    @classmethod
+    def unwrap_root(cls, data: Any) -> Any:
+        """Handle cases where the LLM nests everything under 'investor_pitch_deck'"""
+        if isinstance(data, dict) and len(data) == 1 and 'investor_pitch_deck' in data:
+            return data['investor_pitch_deck']
+        return data
 
 
 class ViabilityScores(BaseModel):
@@ -359,6 +376,18 @@ class BasicExecutiveSummary(BaseModel):
         ..., description="Go/No-Go verdict with justification and action steps"
     )
 
+    @field_validator("report_highlights", mode="before")
+    @classmethod
+    def coerce_highlights_list(cls, v):
+        """Parse JSON-stringified list returned by some LLM models."""
+        parsed = _parse_json_string_field(v)
+        if isinstance(parsed, list):
+            return parsed
+        # Last resort: wrap a bare string as a single-item list
+        if isinstance(parsed, str):
+            return [parsed]
+        return v
+
 
 class BasicReportOutput(BaseModel):
     """
@@ -540,28 +569,28 @@ class MarketEntryBarrier(BaseModel):
 class MarketAnalysisReport(BaseModel):
     """Market Analysis Report (5-7 pages) - STRICT SCHEMA"""
 
-    total_addressable_market: MarketSize = Field(
-        ..., description="TAM with market breakdown"
+    total_addressable_market: Optional[MarketSize] = Field(
+        None, description="TAM with market breakdown"
     )
 
-    serviceable_addressable_market: MarketSize = Field(
-        ..., description="SAM - realistic portion of TAM you can serve"
+    serviceable_addressable_market: Optional[MarketSize] = Field(
+        None, description="SAM - realistic portion of TAM you can serve"
     )
 
-    serviceable_obtainable_market: MarketSize = Field(
-        ..., description="SOM Year 1-3 projections - realistic market share"
+    serviceable_obtainable_market: Optional[MarketSize] = Field(
+        None, description="SOM Year 1-3 projections - realistic market share"
     )
 
-    growth_trends: MarketGrowthAnalysis = Field(
-        ..., description="Structured market dynamics analysis"
+    growth_trends: Optional[MarketGrowthAnalysis] = Field(
+        None, description="Structured market dynamics analysis"
     )
 
-    customer_demographics: CustomerDemographics = Field(
-        ..., description="Demographics, psychographics, and customer behaviors"
+    customer_demographics: Optional[CustomerDemographics] = Field(
+        None, description="Demographics, psychographics, and customer behaviors"
     )
 
     market_entry_barriers: List[MarketEntryBarrier] = Field(
-        ..., description="Barriers to entry and market opportunities identified"
+        default_factory=list, description="Barriers to entry and market opportunities identified"
     )
 
     @field_validator('total_addressable_market', 'serviceable_addressable_market', 'serviceable_obtainable_market', 'growth_trends', 'customer_demographics', 'market_entry_barriers', mode='before')
@@ -724,25 +753,25 @@ class CompetitiveIntelligence(BaseModel):
     """Competitive Intelligence (4-6 pages) - Enhanced with Porter's Five Forces"""
 
     direct_competitors: List[Competitor] = Field(
-        ...,
+        default_factory=list,
         description="Top 5-10 direct competitors analysis with funding and threat levels",
     )
 
     indirect_alternatives: List[IndirectAlternative] = Field(
-        ...,
+        default_factory=list,
         description="Indirect alternatives and substitute solutions (backward compatible)",
     )
 
-    porters_five_forces: PortersFiveForces = Field(
-        ..., description="Porter's Five Forces analysis framework"
+    porters_five_forces: Optional[PortersFiveForces] = Field(
+        None, description="Porter's Five Forces analysis framework"
     )
 
-    competitive_positioning: PositioningAnalysis = Field(
-        ..., description="Structured positioning map data with recommended position"
+    competitive_positioning: Optional[PositioningAnalysis] = Field(
+        None, description="Structured positioning map data with recommended position"
     )
 
     competitor_strategies: List[CompetitorStrategy] = Field(
-        ..., description="Detailed strategy analysis for key competitors"
+        default_factory=list, description="Detailed strategy analysis for key competitors"
     )
 
     @field_validator('direct_competitors', 'indirect_alternatives', 'porters_five_forces', 'competitive_positioning', 'competitor_strategies', mode='before')
@@ -751,15 +780,15 @@ class CompetitiveIntelligence(BaseModel):
         return _parse_json_string_field(v)
 
     differentiation_opportunities: List[DifferentiationOpportunity] = Field(
-        ..., description="Unique value proposition and differentiation opportunities"
+        default_factory=list, description="Unique value proposition and differentiation opportunities"
     )
 
     competitive_moats: List[CompetitiveMoat] = Field(
-        ..., description="Competitive advantages and moats to build"
+        default_factory=list, description="Competitive advantages and moats to build"
     )
 
     competitive_strategy_recommendation: str = Field(
-        ...,
+        "No recommendation available.",
         description="2-3 sentence strategic recommendation for competitive positioning",
     )
 
@@ -855,28 +884,28 @@ class BurnRateRunway(BaseModel):
 class FinancialFeasibility(BaseModel):
     """Financial Feasibility (5-6 pages) - STRICT SCHEMA"""
 
-    three_year_projections: FinancialProjections = Field(
-        ..., description="3-year financial projections"
+    three_year_projections: Optional[FinancialProjections] = Field(
+        None, description="3-year financial projections"
     )
 
-    revenue_model: RevenueModel = Field(
-        ..., description="Revenue model and pricing strategy"
+    revenue_model: Optional[RevenueModel] = Field(
+        None, description="Revenue model and pricing strategy"
     )
 
-    unit_economics: UnitEconomics = Field(
-        ..., description="CAC, LTV, contribution margin breakdown"
+    unit_economics: Optional[UnitEconomics] = Field(
+        None, description="CAC, LTV, contribution margin breakdown"
     )
 
-    break_even_analysis: BreakEvenAnalysis = Field(
-        ..., description="Break-even analysis and timeline"
+    break_even_analysis: Optional[BreakEvenAnalysis] = Field(
+        None, description="Break-even analysis and timeline"
     )
 
-    initial_investment: InvestmentRequirements = Field(
-        ..., description="Initial investment requirements"
+    initial_investment: Optional[InvestmentRequirements] = Field(
+        None, description="Initial investment requirements"
     )
 
-    burn_rate_runway: BurnRateRunway = Field(
-        ..., description="Monthly burn rate and runway"
+    burn_rate_runway: Optional[BurnRateRunway] = Field(
+        None, description="Monthly burn rate and runway"
     )
 
     key_financial_kpis: List[FinancialKPI] = Field(
@@ -893,18 +922,18 @@ class TechStack(BaseModel):
     """Technology stack recommendation - enhanced with rationale"""
 
     frontend: List[str] = Field(
-        ..., description="Frontend technologies with justification"
+        default_factory=list, description="Frontend technologies with justification"
     )
     backend: List[str] = Field(
-        ..., description="Backend technologies with justification"
+        default_factory=list, description="Backend technologies with justification"
     )
     database: List[str] = Field(
-        ..., description="Database technologies with justification"
+        default_factory=list, description="Database technologies with justification"
     )
-    infrastructure: List[str] = Field(..., description="Cloud provider with EU region")
-    tools: List[str] = Field(..., description="Development and monitoring tools")
+    infrastructure: List[str] = Field(default_factory=list, description="Cloud provider with EU region")
+    tools: List[str] = Field(default_factory=list, description="Development and monitoring tools")
     stack_rationale: str = Field(
-        ..., description="Why this stack is optimal for this startup"
+        "Based on standard industry best practices for scalability and time-to-market.", description="Why this stack is optimal for this startup"
     )
 
 
@@ -919,15 +948,15 @@ class Milestone(BaseModel):
 class DevelopmentTimeline(BaseModel):
     """Development timeline"""
 
-    mvp_weeks: str = Field(..., description="Weeks to MVP with key deliverable")
+    mvp_weeks: str = Field("N/A", description="Weeks to MVP with key deliverable")
     beta_weeks: str = Field(
-        ..., description="Weeks to beta launch with key deliverable"
+        "N/A", description="Weeks to beta launch with key deliverable"
     )
     launch_weeks: str = Field(
-        ..., description="Weeks to full launch with key deliverable"
+        "N/A", description="Weeks to full launch with key deliverable"
     )
     key_milestones: List[Milestone] = Field(
-        ..., description="Key development milestones"
+        default_factory=list, description="Key development milestones"
     )
 
 
@@ -955,32 +984,32 @@ class TeamRole(BaseModel):
 class TeamComposition(BaseModel):
     """Technical team composition - enhanced with {geography} hiring notes"""
 
-    key_hires: List[TeamRole] = Field(..., description="List of key technical hires required")
-    team_size: str = Field(..., description="X people at each stage")
-    hiring_notes: str = Field(..., description="Where to find talent in the target geography")
+    key_hires: List[TeamRole] = Field(default_factory=list, description="List of key technical hires required")
+    team_size: str = Field("Unknown", description="X people at each stage")
+    hiring_notes: str = Field("No hiring notes available.", description="Where to find talent in the target geography")
 
 
 class InfrastructureCosts(BaseModel):
     """Infrastructure costs breakdown by stage"""
 
-    mvp_monthly: str = Field(..., description="{currency} X-Y range at MVP stage")
-    growth_monthly: str = Field(..., description="{currency} X-Y range at 10K users")
-    scale_monthly: str = Field(..., description="{currency} X-Y range at 100K users")
-    cost_drivers: List[str] = Field(..., description="Primary cost factors")
+    mvp_monthly: str = Field("N/A", description="{currency} X-Y range at MVP stage")
+    growth_monthly: str = Field("N/A", description="{currency} X-Y range at 10K users")
+    scale_monthly: str = Field("N/A", description="{currency} X-Y range at 100K users")
+    cost_drivers: List[str] = Field(default_factory=list, description="Primary cost factors")
 
 
 class ScalingAction(BaseModel):
     """Action item for scalability plan"""
-    trigger: str = Field(..., description="Trigger for this action (e.g. '10k users')")
-    action: str = Field(..., description="Architecture change required")
-    estimated_effort: str = Field(..., description="Effort to implement (e.g. '2 weeks')")
+    trigger: str = Field("N/A", description="Trigger for this action (e.g. '10k users')")
+    action: str = Field("N/A", description="Architecture change required")
+    estimated_effort: str = Field("N/A", description="Effort to implement (e.g. '2 weeks')")
 
 
 class ScalabilityAnalysis(BaseModel):
     """Scalability planning"""
 
-    current_capacity: str = Field(..., description="Current system capacity")
-    scaling_plan: List[ScalingAction] = Field(..., description=" structured scaling plan")
+    current_capacity: str = Field("Unknown", description="Current system capacity")
+    scaling_plan: List[ScalingAction] = Field(default_factory=list, description=" structured scaling plan")
 
 
 class SecurityComplianceRequirement(BaseModel):
@@ -994,23 +1023,23 @@ class TechnicalRequirements(BaseModel):
     """Technical Requirements (3-4 pages) - Aligned with TECH_PROMPT output"""
 
     technology_stack: TechStack = Field(
-        ..., description="Recommended technology stack with rationale"
+        default_factory=TechStack, description="Recommended technology stack with rationale"
     )
 
     development_timeline: DevelopmentTimeline = Field(
-        ..., description="Development timeline and milestones"
+        default_factory=DevelopmentTimeline, description="Development timeline and milestones"
     )
 
     mvp_features: List[MVPFeature] = Field(
-        ..., description="MVP feature prioritization (structured objects)"
+        default_factory=list, description="MVP feature prioritization (structured objects)"
     )
 
     team_composition: TeamComposition = Field(
-        ..., description="Technical team composition with hiring notes"
+        default_factory=TeamComposition, description="Technical team composition with hiring notes"
     )
 
     infrastructure_costs: InfrastructureCosts = Field(
-        ..., description="Multi-stage infrastructure costs (MVP, growth, scale)"
+        default_factory=InfrastructureCosts, description="Multi-stage infrastructure costs (MVP, growth, scale)"
     )
 
     @field_validator('technology_stack', 'development_timeline', 'mvp_features', 'team_composition', 'infrastructure_costs', mode='before')
@@ -1085,34 +1114,34 @@ class IPItem(BaseModel):
 
 
 class RegulatoryCompliance(BaseModel):
-    """Regulatory Compliance (3-4 pages) - STRICT SCHEMA"""
+    """Regulatory Compliance (3-4 pages)"""
 
-    data_privacy_compliance: DataPrivacyCompliance = Field(
-        ..., description="Data privacy requirements and implementation"
+    data_privacy_compliance: Optional[DataPrivacyCompliance] = Field(
+        None, description="Data privacy requirements and implementation"
     )
 
     country_regulations: List[RegulatoryRequirement] = Field(
-        ..., description="Country-specific regulations in target markets"
+        default_factory=list, description="Country-specific regulations in target markets"
     )
 
     industry_compliance: List[RegulatoryRequirement] = Field(
-        ..., description="Industry-specific compliance needs"
+        default_factory=list, description="Industry-specific compliance needs"
     )
 
     licensing_permits: List[RegulatoryRequirement] = Field(
-        ..., description="Required licensing and permits"
+        default_factory=list, description="Required licensing and permits"
     )
 
     intellectual_property: List[IPItem] = Field(
-        ..., description="IP considerations - structured list"
+        default_factory=list, description="IP considerations - structured list"
     )
 
     terms_of_service_requirements: List[str] = Field(
-        ..., description="Required clauses for Terms of Service (B2B/B2C)"
+        default_factory=list, description="Required clauses for Terms of Service (B2B/B2C)"
     )
 
     privacy_policy_requirements: List[str] = Field(
-        ..., description="Specific requirements for Privacy Policy"
+        default_factory=list, description="Specific requirements for Privacy Policy"
     )
 
     @field_validator(
@@ -1125,8 +1154,8 @@ class RegulatoryCompliance(BaseModel):
     def parse_lists(cls, v):
         return _parse_json_string_field(v)
 
-    compliance_costs: ComplianceCosts = Field(
-        ..., description="Estimated legal and compliance costs"
+    compliance_costs: Optional[ComplianceCosts] = Field(
+        None, description="Estimated legal and compliance costs"
     )
 
 
@@ -1199,17 +1228,17 @@ class GoToMarketStrategy(BaseModel):
     """Go-to-Market Strategy (4-5 pages) - STRICT SCHEMA"""
 
     acquisition_channels: List[AcquisitionChannel] = Field(
-        ..., description="Customer acquisition channels ranked by ROI"
+        default_factory=list, description="Customer acquisition channels ranked by ROI"
     )
 
-    launch_strategy: LaunchStrategy = Field(..., description="90-day launch strategy")
+    launch_strategy: Optional[LaunchStrategy] = Field(None, description="90-day launch strategy")
 
-    marketing_budget: MarketingBudget = Field(
-        ..., description="Marketing budget allocation"
+    marketing_budget: Optional[MarketingBudget] = Field(
+        None, description="Marketing budget allocation"
     )
 
-    content_seo_strategy: ContentSEOStrategy = Field(
-        ..., description="Content marketing and SEO strategy"
+    content_seo_strategy: Optional[ContentSEOStrategy] = Field(
+        None, description="Content marketing and SEO strategy"
     )
 
     @field_validator('acquisition_channels', 'launch_strategy', 'marketing_budget', 'content_seo_strategy', 'partnerships', 'pricing_positioning', 'growth_hacking', mode='before')
@@ -1218,14 +1247,14 @@ class GoToMarketStrategy(BaseModel):
         return _parse_json_string_field(v)
 
     partnerships: List[PartnershipOpportunity] = Field(
-        ..., description="Partnership and distribution opportunities"
+        default_factory=list, description="Partnership and distribution opportunities"
     )
 
-    pricing_positioning: PricingPositioning = Field(
-        ..., description="Pricing strategy and market positioning"
+    pricing_positioning: Optional[PricingPositioning] = Field(
+        None, description="Pricing strategy and market positioning"
     )
 
-    growth_hacking: List[GrowthTactic] = Field(..., description="Growth hacking tactics")
+    growth_hacking: List[GrowthTactic] = Field(default_factory=list, description="Growth hacking tactics")
 
 
 # --- Risk Assessment ---
@@ -1269,27 +1298,27 @@ class RiskAssessment(BaseModel):
     """Risk Assessment Matrix (2-3 pages) - STRICT SCHEMA"""
 
     top_risks: List[Risk] = Field(
-        ..., description="Top 15 risks ranked by probability × impact"
+        default_factory=list, description="Top 15 risks ranked by probability × impact"
     )
 
     mitigation_strategies: List[str] = Field(
-        ..., description="Risk mitigation strategies"
+        default_factory=list, description="Risk mitigation strategies"
     )
 
     contingency_plans: List[ContingencyPlan] = Field(
-        ..., description="Contingency plans and pivot options"
+        default_factory=list, description="Contingency plans and pivot options"
     )
 
     kill_switches: List[KillSwitch] = Field(
-        ..., description="Clear indicators when to stop or pivot"
+        default_factory=list, description="Clear indicators when to stop or pivot"
     )
 
     dependency_risks: List[DependencyRisk] = Field(
-        ..., description="Dependency risks and single points of failure"
+        default_factory=list, description="Dependency risks and single points of failure"
     )
 
     market_timing_risks: List[str] = Field(
-        ..., description="Market timing and competition risks"
+        default_factory=list, description="Market timing and competition risks"
     )
 
     @field_validator('top_risks', 'mitigation_strategies', 'contingency_plans', 'kill_switches', 'dependency_risks', 'market_timing_risks', mode='before')
@@ -1329,8 +1358,8 @@ class YearOneObjectives(BaseModel):
 
     revenue_target: str = Field(..., description="Year 1 revenue target")
     customer_target: str = Field(..., description="Year 1 customer target")
-    key_objectives: List[str] = Field(..., description="Key strategic objectives")
-    okrs: List[OKR] = Field(..., description="Top OKRs for Year 1")
+    key_objectives: List[str] = Field(default_factory=list, description="Key strategic objectives")
+    okrs: List[OKR] = Field(default_factory=list, description="Top OKRs for Year 1")
 
     @field_validator('key_objectives', 'okrs', mode='before')
     @classmethod
@@ -1363,8 +1392,8 @@ class SuccessMetrics(BaseModel):
 class CriticalDependency(BaseModel):
     """Critical path dependency"""
     activity: str = Field(..., description="Key activity")
-    dependency: str = Field(..., description="What it depends on")
-    impact: Literal["High", "Medium", "Low"] = Field(..., description="Impact on timeline if delayed")
+    dependency: str = Field("None", description="What it depends on")
+    impact: Literal["High", "Medium", "Low"] = Field("Medium", description="Impact on timeline if delayed")
 
     @field_validator('impact', mode='before')
     @classmethod
@@ -1375,24 +1404,24 @@ class CriticalDependency(BaseModel):
 class ImplementationRoadmap(BaseModel):
     """Implementation Roadmap (3-4 pages) - STRICT SCHEMA"""
 
-    ninety_day_plan: NinetyDayPlan = Field(
-        ..., description="90-day launch plan with milestones"
+    ninety_day_plan: Optional[NinetyDayPlan] = Field(
+        None, description="90-day launch plan with milestones"
     )
 
-    six_month_plan: SixMonthPlan = Field(..., description="6-month growth plan")
+    six_month_plan: Optional[SixMonthPlan] = Field(None, description="6-month growth plan")
 
-    year_one_objectives: YearOneObjectives = Field(
-        ..., description="Year 1 strategic objectives"
+    year_one_objectives: Optional[YearOneObjectives] = Field(
+        None, description="Year 1 strategic objectives"
     )
 
-    resource_timeline: ResourceTimeline = Field(
-        ..., description="Resource requirements timeline"
+    resource_timeline: Optional[ResourceTimeline] = Field(
+        None, description="Resource requirements timeline"
     )
 
-    critical_path: List[CriticalDependency] = Field(..., description="Critical path activities")
+    critical_path: List[CriticalDependency] = Field(default_factory=list, description="Critical path activities")
 
-    success_metrics: SuccessMetrics = Field(
-        ..., description="Success metrics by timeframe"
+    success_metrics: Optional[SuccessMetrics] = Field(
+        None, description="Success metrics by timeframe"
     )
 
     @field_validator('ninety_day_plan', 'six_month_plan', 'year_one_objectives', 'resource_timeline', 'critical_path', 'success_metrics', mode='before')
@@ -1427,9 +1456,9 @@ class GrantOpportunity(BaseModel):
 class InvestorProfile(BaseModel):
     """Investor landscape"""
 
-    investor_types: List[str] = Field(..., description="Types of investors to target")
-    vcs: List[str] = Field(..., description="Relevant VCs")
-    angel_networks: List[str] = Field(..., description="Relevant angel networks")
+    investor_types: List[str] = Field(default_factory=list, description="Types of investors to target")
+    vcs: List[str] = Field(default_factory=list, description="Relevant VCs")
+    angel_networks: List[str] = Field(default_factory=list, description="Relevant angel networks")
 
 
 class FundingTimeline(BaseModel):
@@ -1465,25 +1494,25 @@ class FundingStrategy(BaseModel):
     """Funding Strategy Guide (3-4 pages) - STRICT SCHEMA"""
 
     funding_options: List[FundingOption] = Field(
-        ..., description="Assessment of funding options"
+        default_factory=list, description="Assessment of funding options"
     )
 
-    grants: List[GrantOpportunity] = Field(..., description="Grant opportunities")
+    grants: List[GrantOpportunity] = Field(default_factory=list, description="Grant opportunities")
 
-    investor_landscape: InvestorProfile = Field(
-        ..., description="Investor landscape mapping"
+    investor_landscape: Optional[InvestorProfile] = Field(
+        None, description="Investor landscape mapping"
     )
 
-    funding_timeline: FundingTimeline = Field(
-        ..., description="Funding timeline and milestones"
+    funding_timeline: Optional[FundingTimeline] = Field(
+        None, description="Funding timeline and milestones"
     )
 
-    valuation_benchmarks: ValuationBenchmarks = Field(
-        ..., description="Valuation benchmarks and equity"
+    valuation_benchmarks: Optional[ValuationBenchmarks] = Field(
+        None, description="Valuation benchmarks and equity"
     )
 
     fundraising_process: List[ProcessStep] = Field(
-        ..., description="Fundraising process best practices"
+        default_factory=list, description="Fundraising process best practices"
     )
 
     @field_validator('funding_options', 'grants', 'investor_landscape', 'funding_timeline', 'valuation_benchmarks', 'fundraising_process', mode='before')

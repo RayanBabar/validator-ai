@@ -114,20 +114,54 @@ async def free_tier_scan(state: ValidationState) -> dict:
         f"Free tier scan complete: score={score}, recommendation={package_rec}, title={generated_title}"
     )
 
-    # Use adjusted_scores (integer) in the report instead of raw LLM scores
+    # --- Key aliasing: handle LLM variations ---
+    # Some models return "value_proposition" instead of "value_prop", etc.
+    value_prop = (
+        res.get("value_prop")
+        or res.get("value_proposition")
+        or res.get("killer_value_proposition")
+        or ""
+    )
+    customer_profile = (
+        res.get("customer_profile")
+        or res.get("ideal_customer")
+        or res.get("target_customer")
+        or ""
+    )
+    what_if_scenario = (
+        res.get("what_if_scenario")
+        or res.get("pivot_scenario")
+        or res.get("scenario_analysis")
+        or ""
+    )
+    personalized_next_step = (
+        res.get("personalized_next_step")
+        or res.get("next_step")
+        or res.get("recommended_action")
+        or ""
+    )
+
+    # Log any missing fields so we can debug model responses
+    missing = [k for k, v in {
+        "value_prop": value_prop,
+        "customer_profile": customer_profile,
+        "what_if_scenario": what_if_scenario,
+        "personalized_next_step": personalized_next_step,
+    }.items() if not v]
+    if missing:
+        logger.warning(f"Free tier LLM response missing fields: {missing}. Raw keys: {list(res.keys())}")
+
     report = FreeReportOutput(
         tier="free",
         title=generated_title,
         viability_score=score,
         gauge_status=gauge_status,
         scores=ViabilityScores(**adjusted_scores),  # Use adjusted integer scores
-        value_proposition=res.get("value_prop", "Value proposition pending"),
-        customer_profile=res.get("customer_profile", "Customer profile pending"),
-        what_if_scenario=res.get("what_if_scenario", "Scenario analysis pending"),
+        value_proposition=value_prop or "Value proposition not generated — please re-run.",
+        customer_profile=customer_profile or "Customer profile not generated — please re-run.",
+        what_if_scenario=what_if_scenario or "Scenario analysis not generated — please re-run.",
         package_recommendation=package_rec,
-        personalized_next_step=res.get(
-            "personalized_next_step", "Begin market validation"
-        ),
+        personalized_next_step=personalized_next_step or "Begin market validation with 5 customer interviews.",
     )
 
     # Send webhook with report data

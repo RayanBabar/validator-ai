@@ -383,9 +383,19 @@ async def get_report(thread_id: str, tier: Optional[str] = None) -> ReportRespon
             "error": state.get("error_message", "An unknown error occurred"),
         }
 
+    # --- Check DB session status FIRST — it is authoritative post-approval ---
+    from src.utils.supabase import get_session_status
+    db_status = await get_session_status(thread_id)
+    db_is_approved = db_status and (
+        db_status.endswith("_report_ready") or db_status == "completed"
+    )
+
     status = "processing"
 
-    if not state:
+    if db_is_approved:
+        # DB says it's done — trust the DB, do not let graph state override
+        status = "completed" if current_tier != "free" else "free_report_complete"
+    elif not state:
         # State is unavailable (timeout/error) — derive status from DB
         status = "completed"
     elif not hasattr(snapshot, 'next') or not snapshot.next:
@@ -463,8 +473,41 @@ async def admin_approve(request: Request, thread_id: str, payload: AdminUpdate =
             config, {"final_report": payload.edited_report}, as_node=current_node
         )
 
-    async for _ in wf_module.app_graph.astream(None, config):
-        pass
+    # Resume the graph to trigger the admin_approval_node
+    logger.info(f"Resuming graph for thread {thread_id} at node {current_node}")
+    try:
+        # Use a list to check if we actually processed anything
+        processed = False
+        async for _ in wf_module.app_graph.astream(None, config):
+            processed = True
+            
+        if not processed:
+            logger.warning(f"Graph astream for {thread_id} yielded nothing. Manually updating status.")
+            # Fallback
+            inputs = snapshot.values.get("inputs")
+            if inputs:
+                if isinstance(inputs, dict):
+                    tier = inputs.get('tier', 'premium')
+                else:
+                    tier = getattr(inputs, 'tier', 'premium')
+            else:
+                tier = "premium"
+            from src.utils.supabase import update_session_status
+            await update_session_status(thread_id, f"{tier}_report_ready")
+            
+    except Exception as e:
+        logger.error(f"Error resuming graph for {thread_id}: {e}")
+        # Fallback
+        inputs = snapshot.values.get("inputs")
+        if inputs:
+            if isinstance(inputs, dict):
+                tier = inputs.get('tier', 'premium')
+            else:
+                tier = getattr(inputs, 'tier', 'premium')
+        else:
+            tier = "premium"
+        from src.utils.supabase import update_session_status
+        await update_session_status(thread_id, f"{tier}_report_ready")
 
     return {
         "status": "approved",

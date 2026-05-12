@@ -93,9 +93,8 @@ async def send_report_webhook(
         "report_metadata": json.dumps(report_metadata),
     }
     
-    
     # Log the payload for debugging
-    logger.info(f"Sending webhook payload for thread {thread_id}: {json.dumps(payload, default=str)}")
+    logger.info(f"Sending webhook payload for thread {thread_id}")
 
     try:
         async with httpx.AsyncClient(timeout=WEBHOOK_TIMEOUT) as client:

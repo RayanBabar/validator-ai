@@ -788,13 +788,24 @@ from src.utils.supabase import update_session_status
 
 async def admin_approval_node(state: ValidationState) -> dict:
     """
-    Admin approval placeholder node.
-    Sets workflow phase and updates database status.
+    Admin approval node.
+    This runs AFTER the admin hits the approve endpoint and resumes the graph.
+    Sets workflow phase and updates database status to ready.
     """
     thread_id = state.get("thread_id")
-    if thread_id:
-        logger.info(f"Setting thread {thread_id} to waiting_for_admin_approval")
-        await update_session_status(thread_id, "waiting_for_admin_approval")
+    inputs = state.get("inputs")
     
-    logger.info("Report ready for admin approval")
-    return {"workflow_phase": "waiting_for_admin"}
+    # Robust tier extraction
+    if hasattr(inputs, 'tier'):
+        tier = inputs.tier
+    elif isinstance(inputs, dict):
+        tier = inputs.get("tier", "premium")
+    else:
+        tier = "premium"
+    
+    if thread_id:
+        logger.info(f"Admin approved thread {thread_id}, setting to {tier}_report_ready")
+        await update_session_status(thread_id, f"{tier}_report_ready")
+    
+    logger.info("Report approved by admin")
+    return {"workflow_phase": "completed"}

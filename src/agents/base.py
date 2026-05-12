@@ -42,7 +42,7 @@ os.environ["TAVILY_API_KEY"] = settings.TAVILY_API_KEY
 # ===========================================
 # Fast/cheap model for simple tasks (interview, free tier, basic scoring)
 llm_fast = ChatOpenAI(
-    model="gpt-5-nano",
+    model="deepseek-v4-flash-free",
     api_key=settings.OPENAI_API_KEY,
     base_url=settings.OPENAI_API_BASE,
     max_retries=3,
@@ -152,19 +152,34 @@ class LLMService:
             
             for attempt in range(max_retries):
                 try:
-                    structured_llm = primary.with_structured_output(schema_class, include_raw=True)
-                    raw_result = await structured_llm.ainvoke(messages)
-                    
-                    if raw_result.get("parsed") is not None:
-                        return raw_result["parsed"]
-                    
-                    raw_msg = raw_result.get("raw")
-                    if raw_msg is not None:
-                        raw_content = raw_msg.content if isinstance(raw_msg.content, str) else str(raw_msg.content)
+                    # On first attempt, try with_structured_output
+                    # On subsequent attempts, if we got a 400, try plain chat instead
+                    if attempt == 0:
+                        structured_llm = primary.with_structured_output(schema_class, include_raw=True)
+                        raw_result = await structured_llm.ainvoke(messages)
+                        
+                        if raw_result.get("parsed") is not None:
+                            return raw_result["parsed"]
+                        
+                        raw_msg = raw_result.get("raw")
+                        if raw_msg is not None:
+                            raw_content = raw_msg.content if isinstance(raw_msg.content, str) else str(raw_msg.content)
+                    else:
+                        # Standard invoke on retries
+                        response = await primary.ainvoke(messages)
+                        raw_content = response.content if isinstance(response.content, str) else str(response.content)
                     break
                 except Exception as e:
-                    if ("429" in str(e) or "400" in str(e)) and attempt < max_retries - 1:
+                    error_msg = str(e)
+                    is_rate_limit = "429" in error_msg
+                    is_bad_request = "400" in error_msg
+                    
+                    if is_bad_request:
+                        logger.warning(f"LLM 400 Bad Request on attempt {attempt+1}. Switching to plain invoke for retry. Error: {error_msg}")
+                    
+                    if (is_rate_limit or is_bad_request) and attempt < max_retries - 1:
                         wait_time = backoff * (2 ** attempt)
+                        logger.warning(f"Retrying LLM call ({attempt+1}/{max_retries}) in {wait_time}s due to {error_msg}")
                         await asyncio.sleep(wait_time)
                         continue
                     
@@ -172,10 +187,12 @@ class LLMService:
                         raw_response = await primary.ainvoke(messages)
                         raw_content = raw_response.content if isinstance(raw_response.content, str) else str(raw_response.content)
                         break
-                    except Exception:
+                    except Exception as final_e:
+                        logger.error(f"LLM call permanently failed: {final_e}")
                         raise e
         
-        if not raw_content:
+        if not raw_content or not raw_content.strip():
+            logger.error(f"LLM returned empty content for {schema_class.__name__}")
             raise ValueError(f"No content for {schema_class.__name__}")
 
         # --- Phase 2: Manual JSON extraction fallback ---
@@ -219,18 +236,33 @@ class LLMService:
                                     except json.JSONDecodeError:
                                         break
 
-                # Case 2: Common syntax errors (missing commas)
+                # Case 2: Common syntax errors (missing commas, trailing commas, single quotes)
                 repaired = s
                 # Comma between a value and a next key
                 repaired = re.sub(r'(\d|true|false|null|\}|\])\s*(")', r'\1, \2', repaired)
                 # Comma between two strings
                 repaired = re.sub(r'("[\s\S]*?")\s*(")', r'\1, \2', repaired)
+                # Remove trailing commas
+                repaired = re.sub(r',\s*\]', ']', repaired)
+                repaired = re.sub(r',\s*\}', '}', repaired)
+                
                 repaired = repaired.replace(', ,', ',').replace(',,', ',')
                 
                 try:
                     return json.loads(repaired)
                 except json.JSONDecodeError:
-                    pass
+                    # Try single quote replacement as last resort
+                    try:
+                        # Very simple replacement for single quotes used as JSON delimiters
+                        # Only if it looks like a dictionary with single quotes
+                        if "'" in repaired:
+                            # Replace 'key': with "key":
+                            repaired_sq = re.sub(r"'\s*([^':]+)\s*'\s*:", r'"\1":', repaired)
+                            # Replace : 'value' with : "value"
+                            repaired_sq = re.sub(r":\s*'([^']*)'", r': "\1"', repaired_sq)
+                            return json.loads(repaired_sq)
+                    except:
+                        pass
                 
                 # Case 3: Truncated JSON
                 brace_positions = [i for i, c in enumerate(s) if c == '}']
@@ -263,10 +295,9 @@ class LLMService:
         if isinstance(parsed_dict, dict) and len(parsed_dict) == 1:
             wrapper_key = list(parsed_dict.keys())[0]
             val = parsed_dict[wrapper_key]
-            if isinstance(val, dict):
-                # Only unwrap if the wrapper key matches the schema or looks like a wrapper
-                if _to_snake(wrapper_key) == _to_snake(schema_class.__name__) or not (set(schema_class.model_fields.keys()) & set(parsed_dict.keys())):
-                    parsed_dict = val
+            # Only unwrap if the wrapper key matches the schema or looks like a wrapper
+            if _to_snake(wrapper_key) == _to_snake(schema_class.__name__) or not (set(schema_class.model_fields.keys()) & set(parsed_dict.keys())):
+                parsed_dict = val
         
         # Normalize and validate
         snake_dict = _normalize_keys(parsed_dict)

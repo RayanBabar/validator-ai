@@ -7,6 +7,7 @@ from uuid import uuid4
 from typing import Dict, Any, Union, Optional
 import logging
 import asyncio
+import json
 from src.models.inputs import (
     StartupSubmission,
     AdminUpdate,
@@ -198,9 +199,9 @@ async def submit_answer(request: Request, thread_id: str, payload: AnswerInput, 
         }
 
 
-# ============================================
-# PHASE 3: UPGRADE
-# ============================================
+
+
+
 
 
 @validation.post("/upgrade/{thread_id}")

@@ -126,6 +126,90 @@ export async function submitAnswer(threadId: string, answer: string, currentQues
   return data;
 }
 
+export async function submitAnswerStream(
+  threadId: string,
+  answer: string,
+  onToken: (token: string) => void,
+  onComplete: (data: AnswerResponse) => void,
+  onError: (err: any) => void
+): Promise<void> {
+  if (USE_MOCK) {
+    // Mock streaming: delay and then return mock next question letter-by-letter
+    await new Promise(r => setTimeout(r, 1000));
+    const fullText = "Who are your ideal first 10 customers? Be specific about their role.";
+    let currentIdx = 0;
+    const interval = setInterval(() => {
+      if (currentIdx < fullText.length) {
+        onToken(fullText.slice(currentIdx, currentIdx + 4));
+        currentIdx += 4;
+      } else {
+        clearInterval(interval);
+        onComplete({
+          thread_id: threadId,
+          status: 'question_pending',
+          question: fullText,
+          question_number: 2,
+          questions_remaining: 3,
+        });
+      }
+    }, 60);
+    return;
+  }
+
+  try {
+    const headers = await getHeaders();
+    const res = await fetch(`${API_BASE_URL}/answer/${threadId}/stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ answer }),
+    });
+
+    if (!res.ok) throw new Error('Failed to submit answer stream');
+
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error('No readable stream body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep partial line in buffer
+
+      for (const line of lines) {
+        const cleaned = line.trim();
+        if (!cleaned.startsWith('data: ')) continue;
+        
+        try {
+          const payload = JSON.parse(cleaned.slice(6));
+          if (payload.token) {
+            onToken(payload.token);
+          } else if (payload.done) {
+            onComplete({
+              thread_id: threadId,
+              status: payload.status === 'interview_complete' ? 'free_report_ready' : 'question_pending',
+              question: payload.question || undefined,
+              question_number: payload.question_number || undefined,
+              questions_remaining: payload.questions_remaining || undefined,
+              message: payload.status === 'interview_complete' ? 'Your free viability report is ready!' : undefined,
+              report_endpoint: payload.status === 'interview_complete' ? `/report/${threadId}` : undefined,
+            });
+          }
+        } catch (e) {
+          console.error('Error parsing SSE event:', e);
+        }
+      }
+    }
+  } catch (err) {
+    onError(err);
+  }
+}
+
+
 export async function getReport(threadId: string, tier: string = 'free') {
   if (USE_MOCK) {
     await new Promise(r => setTimeout(r, 800));

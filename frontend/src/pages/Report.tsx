@@ -1647,19 +1647,49 @@ export default function Report() {
   };
 
   useEffect(() => {
+    let intervalId: any = null;
+
     async function load() {
       try {
         const data = await getReport(threadId || '', tier);
         setReport(data);
         setEditedData(data.report_data);
+        
+        if (data.status === 'processing') {
+          setLoading(true);
+          intervalId = setInterval(async () => {
+            try {
+              const updatedData = await getReport(threadId || '', tier);
+              if (updatedData.status !== 'processing') {
+                setReport(updatedData);
+                setEditedData(updatedData.report_data);
+                setLoading(false);
+                if (intervalId) {
+                  clearInterval(intervalId);
+                  intervalId = null;
+                }
+              }
+            } catch (pollErr) {
+              console.error('Error polling report:', pollErr);
+            }
+          }, 3000);
+        } else {
+          setLoading(false);
+        }
       } catch (err) {
         console.error('Failed to load report', err);
         setLoadError('The report is still being generated or could not be loaded. Please try refreshing the page in a moment.');
-      } finally {
         setLoading(false);
       }
     }
+    
     load();
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [threadId, tier]);
 
   const handleSave = async () => {
@@ -1709,7 +1739,11 @@ export default function Report() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Brain className="w-12 h-12 text-primary mx-auto mb-4 animate-pulse" />
-          <p className="text-muted-foreground">Loading your report...</p>
+          <p className="text-muted-foreground font-medium animate-pulse">
+            {report?.status === 'processing'
+              ? 'Analyzing startup viability and compiling market research...'
+              : 'Loading your report...'}
+          </p>
         </div>
       </div>
     );

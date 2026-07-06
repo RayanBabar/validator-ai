@@ -269,8 +269,8 @@ async def compile_standard_report(state: ValidationState) -> dict:
             }
         )
 
-        MAX_FIX_CYCLES = 2
-        MAX_LLM_CALLS = 15  # Budget limit
+        MAX_FIX_CYCLES = 1   # One cycle is sufficient with paid model quality
+        MAX_LLM_CALLS = 8   # Tightened budget for single-cycle run
         MAX_PARALLEL_FIXES = 3
         llm_calls_used = 0
 

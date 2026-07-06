@@ -38,26 +38,118 @@ logger = logging.getLogger(__name__)
 os.environ["TAVILY_API_KEY"] = settings.TAVILY_API_KEY
 
 # ===========================================
-# OPENAI LLM INSTANCES
+# LLM INSTANCES — OpenRouter → Baidu Qianfan
 # ===========================================
-# Fast/cheap model for simple tasks (interview, free tier, basic scoring)
-llm_fast = ChatOpenAI(
-    model="deepseek-v4-flash-free",
-    api_key=settings.OPENAI_API_KEY,
-    base_url=settings.OPENAI_API_BASE,
-    max_retries=3,
+#
+# FAST TIER — DeepSeek V4 Flash (via Qianfan)
+#   Use: interview, synthesis, quality-check, free-tier, consistency
+#   TTFT:       0.61s | Throughput: 84 tps
+#   Price:      $0.0983 / $0.1966 per 1M tokens
+#   Uptime:     99.87%
+#   Fallback:   Qianfan → Alibaba → NovitaAI
+#
+# COMPLEX TIER — DeepSeek V4 Pro (via Qianfan)
+#   Use: standard/premium report modules, executive summary, scoring
+#   TTFT:       0.62s | Throughput: 26 tps
+#   Price:      $0.7605 / $1.521 per 1M tokens
+#   Uptime:     99.81%
+#   Fallback:   Qianfan → StreamLake → GMICloud
+# -----------------------------------------------------------------
+
+_OPENROUTER_BASE = "https://openrouter.ai/api/v1"
+_MODEL_FLASH = "deepseek/deepseek-v4-flash"
+_MODEL_PRO   = "deepseek/deepseek-v4-pro"
+
+# V4 Flash provider routing (interview + fast tasks)
+_ROUTING_FLASH = {
+    "provider": {
+        "order": ["Qianfan", "Alibaba", "Novita"],
+        "allow_fallbacks": True,
+    }
+}
+
+# V4 Pro provider routing: none — OpenRouter Balanced mode auto-selects cheapest
+# (currently StreamLake $0.7482/$1.496 per 1M, 33 tps, 98.24% uptime)
+
+_HEADERS = {"X-Title": "validator-ai"}
+
+# Interview model — lowest-latency V4 Flash path for interactive Q&A
+llm_interview = ChatOpenAI(
+    model=_MODEL_FLASH,
+    api_key=settings.OPENROUTER_API_KEY,
+    base_url=_OPENROUTER_BASE,
+    max_retries=2,
+    timeout=15,
+    extra_body=_ROUTING_FLASH,
+    default_headers=_HEADERS,
 )
 
-# Complex/powerful model for detailed analysis (standard/premium modules)
-llm_complex = ChatOpenAI(
-    model="minimax-m2.5-free", # Using a free model to ensure zero API costs
-    api_key=settings.OPENAI_API_KEY,
-    base_url=settings.OPENAI_API_BASE,
+
+
+# Fast model — V4 Flash for synthesis, quality-check, consistency, free-tier
+llm_fast = ChatOpenAI(
+    model=_MODEL_FLASH,
+    api_key=settings.OPENROUTER_API_KEY,
+    base_url=_OPENROUTER_BASE,
     max_retries=3,
+    extra_body=_ROUTING_FLASH,
+    default_headers=_HEADERS,
+)
+
+# Complex model — V4 Pro for standard/premium modules, executive summary, scoring
+# 1.6T total params / 49B activated: handles 2,500-word module outputs with high fidelity
+# No provider routing — OpenRouter Balanced mode picks cheapest (StreamLake $0.7482/1M)
+llm_complex = ChatOpenAI(
+    model=_MODEL_PRO,
+    api_key=settings.OPENROUTER_API_KEY,
+    base_url=_OPENROUTER_BASE,
+    max_retries=3,
+    timeout=120,  # Pro generates long outputs — allow more time
+    default_headers=_HEADERS,
 )
 
 # Default export for backward compatibility
 llm = llm_fast
+
+def _apply_prompt_caching(messages: List[BaseMessage], model_name: str) -> List[BaseMessage]:
+    """
+    Apply prompt caching metadata to messages if the model supports it.
+    Currently Anthropic/Claude requires explicit 'cache_control' metadata in block format.
+    DeepSeek handles context caching automatically on the provider side.
+    """
+    if not messages:
+        return messages
+
+    is_anthropic = "claude" in model_name.lower() or "anthropic" in model_name.lower()
+    
+    if is_anthropic:
+        # Anthropic prompt caching requires explicit cache_control blocks.
+        # We attach caching to the first message (usually SystemMessage) if it is text-based.
+        first_msg = messages[0]
+        if isinstance(first_msg.content, str) and len(first_msg.content) > 1024:
+            # Convert string content to block format with cache_control
+            cached_content = [
+                {
+                    "type": "text",
+                    "text": first_msg.content,
+                    "cache_control": {"type": "ephemeral"}
+                }
+            ]
+            
+            # Reconstruct to avoid modifying read-only pydantic model in place
+            if isinstance(first_msg, SystemMessage):
+                messages[0] = SystemMessage(
+                    content=cached_content, 
+                    additional_kwargs=first_msg.additional_kwargs
+                )
+            elif isinstance(first_msg, HumanMessage):
+                messages[0] = HumanMessage(
+                    content=cached_content, 
+                    additional_kwargs=first_msg.additional_kwargs
+                )
+            logger.info("Applied explicit Anthropic prompt caching to first message")
+            
+    return messages
 
 
 # ===========================================
@@ -72,8 +164,8 @@ class LLMService:
     Pydantic schema-based output.
     """
     
-    # Limit parallel calls to avoid rate limits from free providers
-    _semaphore = asyncio.Semaphore(3)
+    # Paid API: allow up to 15 concurrent calls (10 modules + synthesis overhead)
+    _semaphore = asyncio.Semaphore(15)
     
     @staticmethod
     async def invoke(
@@ -90,10 +182,13 @@ class LLMService:
         
         # 1. Generate messages from prompt
         if isinstance(prompt, list):
-            messages = prompt
+            messages = list(prompt)
         else:
             messages_val = await prompt.ainvoke(invoke_args or {})
             messages = messages_val.to_messages()
+            
+        # 1b. Apply prompt caching if model supports it
+        messages = _apply_prompt_caching(messages, primary.model_name)
         
         # 2. Invoke LLM with retry logic
         async with LLMService._semaphore:
@@ -139,10 +234,13 @@ class LLMService:
         primary = llm_complex if use_complex else llm_fast
         
         if isinstance(prompt, list):
-            messages = prompt
+            messages = list(prompt)
         else:
             messages_val = await prompt.ainvoke(invoke_args or {})
             messages = messages_val.to_messages()
+
+        # Apply prompt caching if model supports it
+        messages = _apply_prompt_caching(messages, primary.model_name)
 
         raw_content: Optional[str] = None
         
@@ -378,6 +476,12 @@ async def search_with_tavily_detailed(search_query: str) -> list:
     """
     try:
         search_results = await search_tool.ainvoke(search_query)
+        
+        # Check if result is an error dict
+        if isinstance(search_results, dict) and "error" in search_results:
+            logger.warning(f"Tavily detailed search returned error: {search_results['error']}")
+            return []
+
         if isinstance(search_results, list):
             return search_results
             
@@ -401,7 +505,7 @@ async def search_with_tavily_detailed(search_query: str) -> list:
                 logger.warning(f"Tavily returned non-JSON string: {search_results[:100]}...")
                 return []
         
-        logger.warning(f"Tavily detailed search returned unexpected format: {type(search_results)}")
+        logger.warning(f"Tavily detailed search returned unexpected format: {type(search_results)}. Content: {search_results}")
         return []
     except Exception as e:
         logger.error(f"Tavily detailed search failed: {e}")

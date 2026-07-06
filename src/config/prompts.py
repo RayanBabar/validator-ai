@@ -2111,6 +2111,7 @@ You are a strategic business analyst.
 Your task is to:
 1. Extract and REFINE the core business context (Industry and Geography).
 2. Generate TARGETED research objectives based on this refined context.
+3. Generate READY-TO-USE Tavily search query strings (no LLM step needed downstream).
 
 CURRENT DATE: {current_date}
 
@@ -2135,6 +2136,12 @@ Use the refined terms to ensure high relevance.
 2. **Competitor Research**: Identify direct competitors and substitutes in this *specific* niche.
 3. **Industry Trends**: Look for "Why Now" drivers (regulatory changes, tech shifts).
 
+## TASK 3: SEARCH QUERY STRINGS (NEW)
+For each research objective above, write ONE concise, ready-to-submit Tavily search query.
+- Max 12 words per query.
+- Include the target geography and the current year (extract from {current_date}) where relevant.
+- Be specific enough to return data-rich results.
+
 ---
 
 Return VALID JSON ONLY:
@@ -2151,6 +2158,12 @@ Return VALID JSON ONLY:
         "market_research": "Specific query for market size/growth in [Geography] for [Refined Industry]",
         "competitor_research": "Specific query for competitors in [Geography] for [Refined Industry]",
         "industry_research": "Specific query for trends/regulations in [Geography] for [Refined Industry]"
+    }},
+    "search_queries": {{
+        "market_research": "<ready Tavily string: e.g. 'AI invoice processing market size Europe 2026'>",
+        "competitor_research": "<ready Tavily string: e.g. 'Basware Coupa competitors AI invoicing DACH 2026'>",
+        "industry_research": "<ready Tavily string: e.g. 'fintech automation trends Germany regulation 2026'>"
     }}
 }}
 """)
+

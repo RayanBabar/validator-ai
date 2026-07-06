@@ -4,9 +4,11 @@ Conducts clarifying questions and synthesizes context for validation.
 Uses LLMService for LLM invocations with automatic Claude fallback.
 """
 
+import asyncio
 import logging
+import json
 
-from src.agents.base import LLMService
+from src.agents.base import LLMService, search_with_tavily_detailed, llm_interview
 from src.models.inputs import ValidationState
 from src.config.prompts import (
     INTERVIEW_PROMPT,
@@ -20,6 +22,36 @@ from src.config.constants import MIN_INTERVIEW_QUESTIONS, MAX_INTERVIEW_QUESTION
 from src.agents.search.research import conduct_dynamic_research
 
 logger = logging.getLogger(__name__)
+
+
+async def _direct_search(queries: dict, max_length: int) -> dict:
+    """
+    Run pre-generated Tavily query strings in parallel, skipping the
+    generate_llm_queries() step. Saves 3 LLM roundtrips per synthesis.
+
+    Args:
+        queries: Dict of {objective_key: ready_query_string}
+        max_length: Character limit per result block
+
+    Returns:
+        Dict of {objective_key: concatenated_content_string}
+    """
+    async def _fetch(key: str, query: str):
+        try:
+            results = await search_with_tavily_detailed(query)
+            content = "\n\n".join(
+                r.get("content", "")[:500]
+                for r in results
+                if r.get("content")
+            )
+            return key, content[:max_length]
+        except Exception as e:
+            logger.warning(f"_direct_search failed for '{key}': {e}")
+            return key, ""
+
+    pairs = await asyncio.gather(*[_fetch(k, v) for k, v in queries.items()])
+    return dict(pairs)
+
 
 
 async def evaluate_interview_quality(state: ValidationState) -> dict:
@@ -89,6 +121,46 @@ async def evaluate_interview_quality(state: ValidationState) -> dict:
         }
 
 
+
+def build_interview_messages(state: ValidationState) -> list:
+    """
+    Build the LangChain messages list for the interview prompt.
+
+    Shared by:
+    - interviewer_node: for standard graph execution
+    - SSE streaming endpoint: for token-by-token delivery to the frontend
+
+    Args:
+        state: Current validation state
+
+    Returns:
+        List of LangChain message objects ready for llm.ainvoke() or llm.astream()
+    """
+    questions_asked = state.get("questions_asked", [])
+    user_answers = state.get("user_answers", [])
+    num_questions_asked = len(questions_asked)
+    inputs = state.get("inputs")
+    business_idea = inputs.detailed_description if inputs else ""
+    date_context = get_date_context()
+
+    prev_q = (
+        "\n".join([f"Q{i + 1}: {q}" for i, q in enumerate(questions_asked)])
+        or "None yet"
+    )
+    prev_a = (
+        "\n".join([f"A{i + 1}: {a}" for i, a in enumerate(user_answers)]) or "None yet"
+    )
+
+    return INTERVIEW_PROMPT.format_messages(
+        current_date=date_context["current_date"],
+        business_idea=business_idea,
+        previous_questions=prev_q,
+        previous_answers=prev_a,
+        questions_asked=num_questions_asked + 1,
+        max_questions=MAX_INTERVIEW_QUESTIONS,
+    )
+
+
 async def interviewer_node(state: ValidationState) -> dict:
     """
     Analyzes input and decides if more clarification is needed.
@@ -133,30 +205,35 @@ async def interviewer_node(state: ValidationState) -> dict:
     inputs = state.get("inputs")
     business_idea = inputs.detailed_description if inputs else ""
 
-    # Get date context for prompt
-    date_context = get_date_context()
-
-    # Ask LLM if more info needed (with fallback)
+    # Prompt is built by build_interview_messages for reuse in the SSE endpoint
+    # Ask llm_interview directly for lowest-latency TTFT
     try:
-        result = await LLMService.invoke(
-            INTERVIEW_PROMPT,
-            {
-                "current_date": date_context["current_date"],
-                "business_idea": business_idea,
-                "previous_questions": prev_q,
-                "previous_answers": prev_a,
-                "questions_asked": num_questions_asked + 1,
-                "max_questions": MAX_INTERVIEW_QUESTIONS,
-            },
-            use_complex=False,
-            parse_json=True,
-            provider="claude",
-        )
+        messages = build_interview_messages(state)
+        # Use JSON mode for reliable extraction
+        structured_llm = llm_interview.with_structured_output(dict, method="json_mode")
+        result = await structured_llm.ainvoke(messages)
     except Exception as e:
-        logger.error(f"Interview LLM error (both OpenAI and Claude failed): {e}")
-        # Re-raise so the API route returns a proper error to the user
-        # instead of silently continuing with zero interview answers
-        raise
+        logger.warning(f"Structured output invoke failed: {e}. Falling back to manual JSON extraction.")
+        try:
+            # Fallback to plain invoke + regex parsing
+            raw = await llm_interview.ainvoke(messages)
+            raw_content = raw.content if isinstance(raw.content, str) else str(raw.content)
+            
+            # Find JSON block
+            import re
+            json_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw_content)
+            json_str = json_match.group(1).strip() if json_match else raw_content.strip()
+            
+            start_idx = json_str.find("{")
+            end_idx = json_str.rfind("}")
+            if start_idx != -1 and end_idx != -1:
+                json_str = json_str[start_idx:end_idx + 1]
+                
+            result = json.loads(json_str)
+        except Exception as fallback_err:
+            logger.error(f"Interview LLM error (both structured and manual parse failed): {fallback_err}")
+            raise fallback_err
+
 
     # Decide based on LLM response
     llm_wants_more_info = result.get("needs_more_info", False)
@@ -295,11 +372,21 @@ async def synthesize_context(state: ValidationState) -> dict:
         search_description += f"\n\nSuggested Search Keywords: {formatted_keywords}"
         logger.info(f"Injecting optimized keywords into search context: {formatted_keywords}")
 
-    research_results = await conduct_dynamic_research(
-        description=search_description,
-        research_objectives=research_objectives,
-        max_length_per_objective=RESEARCH_CONTENT_LIMIT,
-    )
+    # OPTIMIZATION: Use pre-generated query strings from merged LLM call,
+    # bypassing generate_llm_queries() and saving 3 extra LLM roundtrips.
+    search_queries = merged_result.get("search_queries", {})
+
+    if search_queries and isinstance(search_queries, dict) and len(search_queries) >= 2:
+        logger.info(f"_direct_search: Using {len(search_queries)} pre-built Tavily queries (no extra LLM calls)")
+        research_results = await _direct_search(search_queries, RESEARCH_CONTENT_LIMIT)
+    else:
+        # Fallback: prompt didn't return search_queries — use full research pipeline
+        logger.info("_direct_search: No search_queries in merged result, falling back to conduct_dynamic_research")
+        research_results = await conduct_dynamic_research(
+            description=search_description,
+            research_objectives=research_objectives,
+            max_length_per_objective=RESEARCH_CONTENT_LIMIT,
+        )
 
     try:
         result = await LLMService.invoke(

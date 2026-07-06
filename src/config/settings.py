@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     TAVILY_API_KEY: str
 
+    # Paid API keys
+    OPENROUTER_API_KEY: str  # OpenRouter key — routes to Baidu Qianfan by default
+
     # Optional API Keys
     ANTHROPIC_API_KEY: Optional[str] = None
     OPENAI_API_BASE: Optional[str] = None

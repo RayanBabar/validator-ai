@@ -334,13 +334,11 @@ async def verify_cross_module_consistency(
 
     # Execute only needed summarizations with limited concurrency to avoid 429/400 errors
     if modules_to_summarize:
-        semaphore = asyncio.Semaphore(2)  # Limit to 2 parallel summarization calls
+        semaphore = asyncio.Semaphore(10)  # Paid API: all 10 modules in parallel
         
         async def sem_summarize(name, data):
             async with semaphore:
-                res = await summarize_for_check(name, data)
-                await asyncio.sleep(0.5)  # Small cooldown between calls
-                return res
+                return await summarize_for_check(name, data)
 
         tasks = [
             sem_summarize(name, data)
